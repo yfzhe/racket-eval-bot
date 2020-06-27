@@ -30,9 +30,8 @@
   `((chat_id . ,chat-id)
     (parse_mode . "MarkdownV2")
     (text . #<<END
-Welcome to *racket-eval-bot*\!
+Welcome to *racket\-eval\-bot*\!
 Type your code, and wait for the result\.
-You can find its source code at [github](https://github.com/yfzhe/racket\-eval\-bot)\.
 END
           )))
 

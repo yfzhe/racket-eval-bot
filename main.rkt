@@ -4,25 +4,20 @@
          "commands.rkt")
 
 (define token (getenv "BOT_TOKEN"))
-(define bot
-  (if token
-      (make-bot token)
-      (error "does not setup BOT_TOKEN env-var")))
-
+(unless token
+  (error "does not setup BOT_TOKEN env-var"))
+(define bot (make-bot token))
 
 (define (handle-update update)
   (define message (hash-ref update 'message #f))
-  ;; ignore updates which are not of type "message"
-  (when message
-    (cond
-      ;; currently only handle messages with `text` field
-      [(hash-ref message 'text #f)
-       (with-handlers ([exn:fail:bot:api?
-                        (lambda (e)
-                          (displayln (exn:fail:bot:api->string e)))])
-         (define res (handle-message message))
-         (when res
-           (bot-send-message bot res)))])))
+  ;; currently only handle "message" updates with `text` field
+  (when (and message (hash-ref message 'text #f))
+    (with-handlers ([exn:fail:bot:api?
+                     (lambda (e)
+                       (displayln (exn:fail:bot:api->string e)))])
+      (define res (handle-message message))
+      (when res
+        (bot-send-message bot res)))))
 
 (define *interval* 0.1)
 
