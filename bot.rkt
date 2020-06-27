@@ -1,11 +1,12 @@
 #lang racket/base
 (require net/url json
-         racket/function)
+         racket/format racket/function)
 
 (provide make-bot bot?
          bot-get bot-post
          (struct-out exn:fail:bot)
          (struct-out exn:fail:bot:api)
+         exn:fail:bot:api->string
          bot-get-me bot-get-updates bot-send-message)
 
 ;; bot: the struct "present" bots
@@ -16,6 +17,11 @@
 ;; errors
 (struct exn:fail:bot exn:fail ())
 (struct exn:fail:bot:api exn:fail:bot (method description error-code))
+
+(define (exn:fail:bot:api->string exn)
+  (format "Request error at ~a: ~a\n"
+          (exn:fail:bot:api-method exn)
+          (exn:fail:bot:api-description exn)))
 
 ;; telegram api url
 (define *tg-api-base* "https://api.telegram.org/bot")

@@ -1,8 +1,8 @@
 #lang racket/base
-(require "bot.rkt"
+(require racket/list
+         "bot.rkt"
          "eval.rkt"
-         "util.rkt"
-         "webpage.rkt")
+         "util.rkt")
 
 (define token (getenv "BOT_TOKEN"))
 (define bot
@@ -21,6 +21,18 @@
                       (parse_mode . "HTML")
                       #;(reply_to_message_id . ,message-id))))
 
+(define (handle-update update)
+  (define message (hash-ref update 'message #f))
+  ;; ignore updates which are not of type "message"
+  (when message
+    (cond
+      ;; currently only handle messages with `text` field
+      [(hash-ref message 'text #f)
+       (with-handlers ([exn:fail:bot:api?
+                        (lambda (e)
+                          (displayln (exn:fail:bot:api->string e)))])
+         (eval-message message))])))
+
 (define *interval* 0.1)
 
 (define (loop offset)
@@ -30,16 +42,13 @@
      (sleep *interval*)
      (loop offset)]
     [else
-     (define update (car updates))
-     (with-handlers ([exn:fail:bot:api?
-                      (lambda (e)
-                        (printf "Request error at ~a: ~a\n"
-                                (exn:fail:bot:api-method e)
-                                (exn:fail:bot:api-description e)))])
-       (define message (hash-ref update 'message))
-       (eval-message message))
+     (for-each handle-update updates)
+
      (sleep *interval*)
-     (loop (add1 (hash-ref update 'update_id)))]))
+
+     (define last-update-id
+       (hash-ref (last updates) 'update_id))
+     (loop (add1 last-update-id))]))
 
 (module+ main
   (require "webpage.rkt")
