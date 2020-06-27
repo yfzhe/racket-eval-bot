@@ -11,7 +11,13 @@
 (define (index-req req)
   (response/xexpr
    '(html
-     (body "Hello, world"))))
+     (body (p "a racket-eval-bot on telegram")
+           (p "see "
+              (a ((href "https://t.me/racket_eval_bot"))
+                 "@racket-eval-bot"))
+           (p "source code on "
+              (a ((href "https://github.com/yfzhe/racket-eval-bot"))
+                 "github"))))))
 
 (define (app req)
   (app-dispatch req))

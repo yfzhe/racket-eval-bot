@@ -17,6 +17,8 @@
      (match-lambda
        [(list _ code)
         (eval message code)])]
+    [(regexp-match #rx"^/" text)
+     (bad-request message)]
     [(equal? (hash-ref* message 'chat 'type)
              "private")
      (eval message text)]
@@ -28,8 +30,9 @@
   `((chat_id . ,chat-id)
     (parse_mode . "MarkdownV2")
     (text . #<<END
-Welcome to **Racket Eval Bot**\!
+Welcome to *racket-eval-bot*\!
 Type your code, and wait for the result\.
+You can find its source code at [github](https://github.com/yfzhe/racket\-eval\-bot)\.
 END
           )))
 
@@ -38,11 +41,17 @@ END
   `((chat_id . ,chat-id)
     (parse_mode . "MarkdownV2")
     (text . #<<END
-/start \- start to use this bot
-/eval  \- eval code
-/help  \- show this message
+/start\: start to use this bot
+/eval \<code\>\: eval code
+/help\: show this message
 END
           )))
+
+(define (bad-request message)
+  (define chat-id (hash-ref* message 'chat 'id))
+  `((chat_id . ,chat-id)
+    (parse_mode . "MarkdownV2")
+    (text . "Not supported command")))
 
 (define (eval message code)
   (define message-id (hash-ref message 'message_id))
