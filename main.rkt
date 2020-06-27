@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/list
          "bot.rkt"
-         "eval.rkt"
+         "commands.rkt"
          "util.rkt")
 
 (define token (getenv "BOT_TOKEN"))
@@ -10,16 +10,6 @@
       (make-bot token)
       (error "does not setup BOT_TOKEN env-var")))
 
-(define (eval-message message)
-  (define message-id (hash-ref message 'message_id))
-  (define chat-id (hash-ref* message 'chat 'id))
-  (define text (hash-ref message 'text))
-  (define result (eval-code text))
-  (bot-send-message bot
-                    `((chat_id . ,chat-id)
-                      (text . ,result)
-                      (parse_mode . "HTML")
-                      #;(reply_to_message_id . ,message-id))))
 
 (define (handle-update update)
   (define message (hash-ref update 'message #f))
@@ -31,7 +21,8 @@
        (with-handlers ([exn:fail:bot:api?
                         (lambda (e)
                           (displayln (exn:fail:bot:api->string e)))])
-         (eval-message message))])))
+         (bot-send-message bot
+                           (handle-message message)))])))
 
 (define *interval* 0.1)
 
