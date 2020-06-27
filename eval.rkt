@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/sandbox
-         racket/format
+         racket/string racket/format
+         racket/match
          xml)
 
 (provide eval-code)
@@ -12,16 +13,22 @@
                    [sandbox-propagate-exceptions #f]
                    [sandbox-security-guard (current-security-guard)])
       (make-evaluator 'racket)))
-  (define result (evaluator code))
+
+  (define results
+    (call-with-values
+     (lambda () (evaluator code))
+     list))
 
   (define output (get-output evaluator))
   (define error (get-error-output evaluator))
   (define result*
-    (if (void? result)
-        ""
-        (call-in-sandbox-context
-         evaluator
-         (lambda () (~v result)))))
+    (match results
+      [(list (? void?)) ""]
+      [(list single)
+       (~v/sandbox evaluator single)]
+      [(list multi ...)
+       (string-join (map (lambda (v) (~v/sandbox evaluator v)) multi)
+                    "\n")]))
 
   (kill-evaluator evaluator)
 
@@ -34,3 +41,7 @@
                  `((u ,output)
                    (em ,error)
                    ,result*)))]))
+
+(define (~v/sandbox evaluator val)
+  (call-in-sandbox-context evaluator
+                           (lambda () (~v val))))
