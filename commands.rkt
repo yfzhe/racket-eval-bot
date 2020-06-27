@@ -19,7 +19,9 @@
         (eval message code)])]
     [(equal? (hash-ref* message 'chat 'type)
              "private")
-     (eval message text)]))
+     (eval message text)]
+    ;; `#f` represents not to make responses
+    [else #f]))
 
 (define (start message)
   (define chat-id (hash-ref* message 'chat 'id))

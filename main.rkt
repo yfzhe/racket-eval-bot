@@ -1,8 +1,7 @@
 #lang racket/base
 (require racket/list
          "bot.rkt"
-         "commands.rkt"
-         "util.rkt")
+         "commands.rkt")
 
 (define token (getenv "BOT_TOKEN"))
 (define bot
@@ -21,8 +20,9 @@
        (with-handlers ([exn:fail:bot:api?
                         (lambda (e)
                           (displayln (exn:fail:bot:api->string e)))])
-         (bot-send-message bot
-                           (handle-message message)))])))
+         (define res (handle-message message))
+         (when res
+           (bot-send-message bot res)))])))
 
 (define *interval* 0.1)
 
