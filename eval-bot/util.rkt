@@ -29,8 +29,13 @@
     [(_ body ...)
      #'(let ()
          (define ch (make-channel))
+         (define exn-ch (make-channel))
          (thread
           (lambda ()
-            (let ([res (begin body ...)])
+            (with-handlers ([exn?
+                             (lambda (e)
+                               (channel-put exn-ch e))])
+              (define res (begin body ...))
               (channel-put ch res))))
-         (wrap-evt ch values))]))
+         (choice-evt (wrap-evt ch values)
+                     (wrap-evt exn-ch raise)))]))
