@@ -27,5 +27,6 @@
 
   (serve/servlet app
                  #:port port
+                 #:listen-ip #f
                  #:servlet-regexp #rx""
                  #:command-line? #t))
