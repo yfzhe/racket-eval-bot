@@ -21,7 +21,7 @@
 
 (define *interval* 0.1)
 
-(define (loop offset)
+(let loop ([offset 0])
   (define updates (bot-get-updates bot offset))
   (cond
     [(null? updates)
@@ -35,12 +35,3 @@
      (define last-update-id
        (hash-ref (last updates) 'update_id))
      (loop (add1 last-update-id))]))
-
-(module+ main
-  (require "webpage.rkt")
-
-  ;; heroku need us use a port, so make a web page
-  (when (getenv "PORT")
-    (void (thread run-webpage)))
-
-  (loop 0))
