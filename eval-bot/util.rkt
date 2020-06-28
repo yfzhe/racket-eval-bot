@@ -1,8 +1,8 @@
 #lang racket/base
 (require (for-syntax racket/base))
 
-(provide hash-ref*
-         await await/proc)
+(provide hash-ref* hash-ref**
+         async)
 
 ;; hash-ref*: chainning ref nested hash keys
 ;; NOTE: it seems that these two does not need to be macros
@@ -22,18 +22,15 @@
      #'(let ([val (hash-ref hash key #f)])
          (and val (hash-ref** val more ...)))]))
 
-;; await: execute in another thread
-;; inspired by `async-task` and `async` from misc1/async
-(define (await/proc thunk)
-  ;; TODO: make a custom event otherwise a channel
-  (define ch (make-channel))
-  (thread
-   (lambda ()
-     (let ([res (thunk)])
-       (channel-put ch res))))
-  ch)
-
-(define-syntax (await stx)
+;; async: execute in another thread
+;; inspired by misc1/async
+(define-syntax (async stx)
   (syntax-case stx ()
     [(_ body ...)
-     #'(await/proc (lambda () body ...))]))
+     #'(let ()
+         (define ch (make-channel))
+         (thread
+          (lambda ()
+            (let ([res (begin body ...)])
+              (channel-put ch res))))
+         (wrap-evt ch values))]))
