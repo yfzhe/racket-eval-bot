@@ -1,6 +1,6 @@
 #lang info
 
-(define collection "eval-bot")
+(define collection 'multi)
 
 (define deps '("base"
                "sandbox-lib"
