@@ -1,12 +1,11 @@
 #lang racket/base
 (require net/url json
-         racket/format racket/function)
+         racket/function)
 
 (provide make-bot bot?
          bot-get bot-post
          (struct-out exn:fail:bot)
-         (struct-out exn:fail:bot:api)
-         exn:fail:bot:api->string
+         (struct-out exn:fail:bot:api) raise-bot-api-error
          bot-get-me bot-get-updates bot-send-message)
 
 ;; bot: the struct "present" bots
@@ -18,10 +17,20 @@
 (struct exn:fail:bot exn:fail ())
 (struct exn:fail:bot:api exn:fail:bot (method description error-code))
 
-(define (exn:fail:bot:api->string exn)
-  (format "Request error at ~a: ~a\n"
-          (exn:fail:bot:api-method exn)
-          (exn:fail:bot:api-description exn)))
+(define (raise-bot-api-error method desc error-code)
+  (define msg
+    (format #<<END
+bot: error when requesting telegram api ~a
+  description: ~a
+  error code: ~a
+END
+            method desc error-code))
+  (raise
+   (exn:fail:bot:api msg
+                     (current-continuation-marks)
+                     method
+                     desc
+                     error-code)))
 
 ;; telegram api url
 (define *tg-api-base* "https://api.telegram.org/bot")
@@ -58,12 +67,9 @@
   (define response (read-json port))
   (if (hash-ref response 'ok)
       (hash-ref response 'result)
-      (raise
-       (exn:fail:bot:api "Error when request for telegram api"
-                         (current-continuation-marks)
-                         method
-                         (hash-ref response 'description)
-                         (hash-ref response 'error_code)))))
+      (raise-bot-api-error method
+                           (hash-ref response 'description)
+                           (hash-ref response 'error_code))))
 
 ;; apis for each methods
 (define (bot-get-me bot)

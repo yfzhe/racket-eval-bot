@@ -12,12 +12,9 @@
   (define message (hash-ref update 'message #f))
   ;; currently only handle "message" updates with `text` field
   (when (and message (hash-ref message 'text #f))
-    (with-handlers ([exn:fail:bot:api?
-                     (lambda (e)
-                       (displayln (exn:fail:bot:api->string e)))])
-      (define res (handle-message message))
-      (when res
-        (bot-send-message bot res)))))
+    (define res (handle-message message))
+    (when res
+      (bot-send-message bot res))))
 
 (define *interval* 0.1)
 
