@@ -12,12 +12,13 @@
                    [sandbox-error-output 'string]
                    [sandbox-propagate-exceptions #f]
                    [sandbox-security-guard (current-security-guard)])
-      (make-evaluator 'racket)))
+      (make-evaluator 'racket
+                      '(error-print-context-length 2))))
 
+  ;; last expression's result might be multi-values,
+  ;; so use `call-wtih-values` to box them into a list
   (define results
-    (call-with-values
-     (lambda () (evaluator code))
-     list))
+    (call-with-values (lambda () (evaluator code)) list))
 
   (define output (get-output evaluator))
   (define error (get-error-output evaluator))
@@ -38,7 +39,7 @@
     [else
      (apply string-append
             (map xexpr->string
-                 `((u ,output)
+                 `((em ,output)
                    (em ,error)
                    ,result*)))]))
 
