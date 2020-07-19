@@ -7,23 +7,23 @@
 
 (define (handle-message message)
   (define text (hash-ref message 'text))
-  (cond
-    [(regexp-match #rx"^/start" text)
+  ;; TODO: handle command entity better
+  (match text
+    [(regexp #rx"^/start")
      (start message)]
-    [(regexp-match #rx"^/help" text)
+    [(regexp #rx"^/help")
      (help message)]
-    [(regexp-match #rx"^/eval (.+)$" text)
-     =>
-     (match-lambda
-       [(list _ code)
-        (eval message code)])]
-    [(regexp-match #rx"^/" text)
+    [(regexp #rx"^/eval(@[a-z_]+)? (.+)$" (list _ _ code))
+     (eval message code)]
+    [(regexp #rx"^/")
      (bad-request message)]
-    [(equal? (hash-ref* message 'chat 'type)
-             "private")
-     (eval message text)]
-    ;; `#f` represents not to make responses
-    [else #f]))
+    [_
+     (cond
+       [(equal? (hash-ref* message 'chat 'type)
+                "private")
+        (eval message text)]
+       ;; `#f` represents not to make responses
+       [else #f])]))
 
 (define (start message)
   (define chat-id (hash-ref* message 'chat 'id))
