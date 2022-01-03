@@ -6,7 +6,10 @@
          bot-get bot-post
          (struct-out exn:fail:bot)
          (struct-out exn:fail:bot:api) raise-bot-api-error
-         bot-get-me bot-get-updates bot-send-message)
+         bot-get-me
+         bot-get-updates
+         bot-set-webhook
+         bot-send-message)
 
 ;; bot: the struct "present" bots
 (struct bot (token))
@@ -76,9 +79,13 @@ END
   (bot-get bot "/getMe"))
 
 (define (bot-get-updates bot [offset 0])
-  (bot-get bot
-           "/getUpdates"
+  (bot-get bot "/getUpdates"
            `((offset . ,(number->string offset)))))
+
+(define (bot-set-webhook bot webhook-url)
+  ;; TODO: getWebhookInfo and compare to the target
+  (bot-post bot "/setWebhook"
+            `((url . ,webhook-url))))
 
 (define (bot-send-message bot message)
   (bot-post bot "/sendMessage" message))
