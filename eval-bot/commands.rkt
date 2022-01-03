@@ -1,5 +1,6 @@
 #lang racket/base
 (require racket/match
+         racket/string
          "eval.rkt"
          "util.rkt")
 
@@ -13,8 +14,8 @@
      (start message)]
     [(regexp #rx"^/help")
      (help message)]
-    [(regexp #rx"^/eval(@[a-z_]+)? (.+)$" (list _ _ code))
-     (eval message code)]
+    [(regexp #rx"^/eval(@[a-z_]+)?(.+)$" (list _ _ code))
+     (eval message (string-trim code))]
     [(regexp #rx"^/")
      (bad-request message)]
     [_
