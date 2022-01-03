@@ -33,9 +33,12 @@
                  "GitHub"))))))
 
 (define (handle-webhook req)
-  (begin0 (response/empty #:code 200)
-    (handle-update
-     (bytes->jsexpr (request-post-data/raw req)))))
+  (thread
+   (lambda ()
+     (handle-update
+      (bytes->jsexpr (request-post-data/raw req)))))
+
+  (response/empty #:code 200))
 
 (define (handle-update update)
   (define message (hash-ref update 'message #f))
