@@ -1,0 +1,4 @@
+# flyctl launch added from .gitignore
+**\compiled
+**\*.bak
+fly.toml
