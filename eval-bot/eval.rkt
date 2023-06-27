@@ -6,23 +6,39 @@
 
 (provide eval-code)
 
-(define (eval-code code)
-  (define evaluator
-    (parameterize ([sandbox-output 'string]
-                   [sandbox-error-output 'string]
-                   [sandbox-propagate-exceptions #f]
-                   [sandbox-security-guard (current-security-guard)])
-      (make-evaluator 'racket
-                      '(error-print-context-length 2))))
+;; split-code:
+;;   detect the lang from code, and extract the body part
+(define (split-code code)
+  (match (regexp-match #rx"^#lang (.+)\n(.+)" code)
+    [(list _ lang body)
+     (values (string->symbol lang) body)]
+    [_
+     (values 'racket code)]))
 
-  ;; last expression's result might be multi-values,
-  ;; so use `call-wtih-values` to box them into a list
+(define (create-evaluator lang)
+  (parameterize ([sandbox-output 'string]
+                 [sandbox-error-output 'string]
+                 [sandbox-propagate-breaks #f]
+                 [sandbox-propagate-exceptions #f]
+                 [sandbox-memory-limit 64])
+    (make-evaluator lang)))
+
+(define (eval-code code)
+  (define-values (lang body) (split-code code))
+  (define evaluator (create-evaluator lang))
+
+  (call-in-sandbox-context evaluator
+                           (lambda () (error-print-context-length 2)))
+
+  ;; the result of the last expression might be multi-values,
+  ;; use `call-with-values` to collect them into a list.
   (define results
-    (call-with-values (lambda () (evaluator code)) list))
+    (call-with-values (lambda () (evaluator body)) list))
 
   (define output (get-output evaluator))
   (define error (get-error-output evaluator))
-  (define result*
+
+  (define result-string
     (match results
       [(list (? void?)) ""]
       [(list single)
@@ -34,14 +50,15 @@
   (kill-evaluator evaluator)
 
   (cond
-    [(string=? (string-append output error result*) "")
-     (xexpr->string `(del "nothing to output"))]
+    [(andmap (lambda (s) (equal? s ""))
+             (list output error result-string))
+     (xexpr->string `(pre "[nothing to output]"))]
     [else
      (apply string-append
             (map xexpr->string
-                 `((em ,output)
+                 `((pre ,output)
                    (em ,error)
-                   ,result*)))]))
+                   ,result-string)))]))
 
 (define (~v/sandbox evaluator val)
   (call-in-sandbox-context evaluator
