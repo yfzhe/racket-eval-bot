@@ -60,4 +60,4 @@ END
   `((chat_id . ,chat-id)
     (parse_mode . "HTML")
     (text . ,result)
-    #;(reply_to_message_id . ,message-id)))
+    (reply_to_message_id . ,message-id)))
