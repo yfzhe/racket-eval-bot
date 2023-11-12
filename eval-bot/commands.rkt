@@ -6,16 +6,19 @@
 
 (provide handle-message)
 
+;; TODO: i need a robuster way to parse commands
+
 (define (handle-message message)
   (define text (hash-ref message 'text))
-  ;; TODO: handle command entity better
   (match text
     [(regexp #rx"^/start")
      (start message)]
     [(regexp #rx"^/help")
      (help message)]
-    [(regexp #rx"^/eval(@[a-z_]+)?(.+)$" (list _ _ code))
+    [(regexp #px"^/eval\\b(@[a-z_]+)?(.+)$" (list _ _ code))
      (eval message (string-trim code))]
+    [(regexp #px"^/eval_chez\\b(@[a-z_]+)?(.+)$" (list _ _ code))
+     (eval-chez message (string-trim code))]
     [(regexp #rx"^/")
      (bad-request message)]
     [_
@@ -23,7 +26,7 @@
        [(equal? (hash-ref* message 'chat 'type)
                 "private")
         (eval message text)]
-       ;; `#f` represents not to make responses
+       ;; `#f` represents not to respond
        [else #f])]))
 
 (define (start message)
@@ -43,6 +46,7 @@ END
     (text . #<<END
 /start\: start to use this bot
 /eval \<code\>\: eval code
+/eval_chez \<code\>\: eval code with Chez Scheme (inside Racket)
 /help\: show this message
 END
           )))
@@ -57,6 +61,15 @@ END
   (define message-id (hash-ref message 'message_id))
   (define chat-id (hash-ref* message 'chat 'id))
   (define result (eval-code code))
+  `((chat_id . ,chat-id)
+    (parse_mode . "HTML")
+    (text . ,result)
+    (reply_to_message_id . ,message-id)))
+
+(define (eval-chez message code)
+  (define message-id (hash-ref message 'message_id))
+  (define chat-id (hash-ref* message 'chat 'id))
+  (define result (eval-code/chez code))
   `((chat_id . ,chat-id)
     (parse_mode . "HTML")
     (text . ,result)
