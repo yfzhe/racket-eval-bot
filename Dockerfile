@@ -1,4 +1,4 @@
-FROM racket/racket:8.8-full
+FROM racket/racket:8.11-full
 
 WORKDIR /app
 

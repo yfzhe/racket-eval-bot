@@ -3,15 +3,24 @@
          racket/sandbox
          racket/string
          racket/format
-         racket/port
          ffi/unsafe/vm
          xml)
 
 (provide eval-code
          eval-code/chez)
 
-;; split-code:
-;;   detect the lang from code, and extract the body part
+;; To support any #lang, both the s-exp and the non-sexp ones,
+;; we have to read (or parse) the code by ourselves.
+;;
+;; One approach is to read the whole file including the #lang line,
+;; and extract the module body from the `(module name lang body ...)`.
+;; See: https://github.com/AlexKnauth/scribble-code-examples
+;;
+;; However, I choose other way here. To use `sandbox-run-submodules` to
+;; load `configure-runtime` submod, it would setup `current-read-interaction`
+;; (and print-related parameters, that are critical for Rhombus). Then We
+;; access its value as `read-syntax` which read code in interactive mode.
+
 (define (split-code code)
   (match (regexp-match #rx"^#lang (.+)\n(.+)" code)
     [(list _ lang body)
@@ -19,47 +28,57 @@
     [_
      (values 'racket code)]))
 
-(define (create-evaluator lang [requires '()])
-  (define evaluator
-    (parameterize ([sandbox-output 'string]
-                   [sandbox-error-output 'string]
-                   [sandbox-propagate-breaks #f]
-                   [sandbox-propagate-exceptions #f]
-                   [sandbox-memory-limit 64])
-      (make-evaluator lang #:requires requires)))
-  (call-in-sandbox-context evaluator
-    (lambda () (error-print-context-length 2)))
-  evaluator)
+(define (create-evaluator lang)
+  (parameterize ([sandbox-run-submodules '(configure-runtime)]
+                 [sandbox-output 'string]
+                 [sandbox-error-output 'string]
+                 [sandbox-propagate-breaks #f]
+                 [sandbox-propagate-exceptions #f]
+                 [sandbox-make-code-inspector current-code-inspector]
+                 [sandbox-memory-limit 64])
+    (make-module-evaluator (format "#lang ~a" lang))))
 
-(define (base-eval evaluator thunk)
-  ;; the result of the last expression might be multi-values,
-  ;; use `call-with-values` to collect them into a list.
-  (define result (call-with-values thunk list))
+(define (do-eval evaluator code [eval (lambda (stx) (evaluator stx))])
+  (define read-syntax
+    (call-in-sandbox-context evaluator current-read-interaction))
 
-  (define output (get-output evaluator))
-  (define error (get-error-output evaluator))
+  (define results
+    (for/list ([stx (in-port (lambda (in) (read-syntax 'repl in))
+                             (open-input-string code))])
+      ;; the result might be multi-values
+      (define result
+        (call-with-values (lambda () (eval stx)) list))
 
-  (define result-string
-    (match result
-      [(list (? void?)) ""]
-      [(list single)
-       (~v/sandbox evaluator single)]
-      [(list multi ...)
-       (string-join (map (lambda (v) (~v/sandbox evaluator v)) multi)
-                    "\n")]))
+      (define output (get-output evaluator))
+      (define error (get-error-output evaluator))
 
+      (define result-string
+        (match result
+          [(list (? void?)) ""]
+          [(list single)
+           (~v/sandbox evaluator single)]
+          [(list multi ...)
+           (string-join (map (lambda (v) (~v/sandbox evaluator v)) multi)
+                        "\n")]))
+
+      (list result-string output error)))
   (kill-evaluator evaluator)
+  (process-results results))
 
-  (cond
-    [(andmap (lambda (s) (equal? s ""))
-             (list output error result-string))
-     (xexpr->string `(pre "[nothing to output]"))]
-    [else
-     (apply string-append
-            (map xexpr->string
-                 `((pre ,output)
-                   (em ,error)
-                   ,result-string)))]))
+(define (process-results results)
+  (define xexprs
+    (for/list ([r (in-list results)])
+      (match-define (list result output error) r)
+      `(,@(if (non-empty-string? output) `((pre ,output)) '())
+        ,@(if (non-empty-string? error) `((em ,error)) '())
+        ,@(if (non-empty-string? result) `(,result) '()))))
+
+  (define str (apply string-append
+                     (map xexpr->string (apply append xexprs))))
+  (if (non-empty-string? str)
+      str
+      (xexpr->string `(pre "[nothing to output]"))))
+
 
 (define (~v/sandbox evaluator val)
   (call-in-sandbox-context evaluator
@@ -68,20 +87,14 @@
 (define (eval-code code)
   (define-values (lang body) (split-code code))
   (define evaluator (create-evaluator lang))
-  (base-eval evaluator (lambda () (evaluator body))))
+  (do-eval evaluator body))
 
 (define (eval-code/chez code)
   ;; TODO: should i insert `(system-type 'vm)` check here?
 
-  (define sexp
-    (let ([in (open-input-string code)])
-      (port-count-lines! in)
-      (define subexprs (port->list read in))
-      (cond
-        [(= (length subexprs) 1) (car subexprs)]
-        [else (cons 'begin subexprs)])))
-
+  (define-values (_ stxes) (split-code code))
   (define evaluator (create-evaluator 'racket))
-  (base-eval evaluator (lambda ()
-                         (call-in-sandbox-context evaluator
-                           (lambda () (vm-eval sexp))))))
+  (do-eval evaluator stxes
+           (lambda (stx)
+             (call-in-sandbox-context evaluator
+               (lambda () (vm-eval (syntax->datum stx)))))))

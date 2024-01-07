@@ -4,7 +4,9 @@
 
 (define deps '("base"
                "sandbox-lib"
-               "web-server-lib"))
+               "web-server-lib"
+               "rhombus-prototype"))
+
 (define build-deps '())
 
-(define version "0.4")
+(define version "0.6")
