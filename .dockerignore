@@ -1,4 +1,4 @@
 # flyctl launch added from .gitignore
-**\compiled
-**\*.bak
+**/compiled
+**/*.bak
 fly.toml
