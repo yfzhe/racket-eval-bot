@@ -11,7 +11,6 @@
          bot-set-webhook
          bot-send-message)
 
-;; bot: the struct "present" bots
 (struct bot (token))
 
 (define (make-bot token) (bot token))

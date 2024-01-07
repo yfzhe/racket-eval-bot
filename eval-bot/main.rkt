@@ -2,7 +2,7 @@
 (require web-server/servlet
          web-server/servlet-env
          json
-         "bot.rkt"
+         telebot
          "commands.rkt")
 
 (define token (getenv "BOT_TOKEN"))
