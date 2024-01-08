@@ -5,7 +5,7 @@
 (define deps '("base"
                "sandbox-lib"
                "web-server-lib"
-               "rhombus-prototype"))
+               "telebot"))
 
 (define build-deps '())
 

@@ -1,5 +1,7 @@
 FROM racket/racket:8.11-full
 
+RUN raco pkg install -i --auto --no-docs rhombus-prototype
+
 WORKDIR /app
 
 COPY telebot telebot
