@@ -15,22 +15,7 @@
 
 (define app
   (dispatch-case
-   [("") handle-webpage]
    [("webhook") #:method "post" handle-webhook]))
-
-(define (handle-webpage req)
-  (response/xexpr
-   '(html
-     (head (title "racket-eval-bot")
-           (meta ((name "viewport")
-                  (content "width=device-width, initial-scale=1"))))
-     (body (p "A telegram bot to eval racket code")
-           (p "See "
-              (a ((href "https://t.me/racket_eval_bot"))
-                 "@racket_eval_bot"))
-           (p "Source code on "
-              (a ((href "https://github.com/yfzhe/racket-eval-bot"))
-                 "GitHub"))))))
 
 (define (handle-webhook req)
   (thread
