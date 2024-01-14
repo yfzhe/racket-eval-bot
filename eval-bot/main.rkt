@@ -44,7 +44,7 @@
         (match text
           [(regexp #rx"^/")
            (bad-request message)]
-          [_ (eval message text)])]
+          [_ (eval message text 'racket)])]
        [else #f])]))
 
 (define (start message)
