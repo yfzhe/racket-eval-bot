@@ -1,5 +1,5 @@
 #lang racket/base
-(require "bot.rkt"
+(require "private/bot.rkt"
          (for-syntax racket/base
                      syntax/parse
                      racket/syntax
