@@ -3,8 +3,7 @@
          racket/sandbox
          racket/string
          racket/format
-         ffi/unsafe/vm
-         xml)
+         ffi/unsafe/vm)
 
 (provide eval-code
          eval-code/chez)
@@ -42,43 +41,25 @@
   (define read-syntax
     (call-in-sandbox-context evaluator current-read-interaction))
 
-  (define results
-    (for/list ([stx (in-port (lambda (in) (read-syntax 'repl in))
-                             (open-input-string code))])
-      ;; the result might be multi-values
-      (define result
-        (call-with-values (lambda () (eval stx)) list))
+  (for/list ([stx (in-port (lambda (in) (read-syntax 'repl in))
+                           (open-input-string code))])
+    ;; the result might be multi-values
+    (define result
+      (call-with-values (lambda () (eval stx)) list))
 
-      (define output (get-output evaluator))
-      (define error (get-error-output evaluator))
+    (define output (get-output evaluator))
+    (define error (get-error-output evaluator))
 
-      (define result-string
-        (match result
-          [(list (? void?)) ""]
-          [(list single)
-           (~v/sandbox evaluator single)]
-          [(list multi ...)
-           (string-join (map (lambda (v) (~v/sandbox evaluator v)) multi)
-                        "\n")]))
+    (define result-string
+      (match result
+        [(list (? void?)) ""]
+        [(list single)
+         (~v/sandbox evaluator single)]
+        [(list multi ...)
+         (string-join (map (lambda (v) (~v/sandbox evaluator v)) multi)
+                      "\n")]))
 
-      (list result-string output error)))
-  (kill-evaluator evaluator)
-  (process-results results))
-
-(define (process-results results)
-  (define xexprs
-    (for/list ([r (in-list results)])
-      (match-define (list result output error) r)
-      `(,@(if (non-empty-string? output) `((pre ,output)) '())
-        ,@(if (non-empty-string? error) `((em ,error)) '())
-        ,@(if (non-empty-string? result) `(,result) '()))))
-
-  (define str (apply string-append
-                     (map xexpr->string (apply append xexprs))))
-  (if (non-empty-string? str)
-      str
-      (xexpr->string `(pre "[nothing to output]"))))
-
+    (list result-string output error)))
 
 (define (~v/sandbox evaluator val)
   (call-in-sandbox-context evaluator
@@ -87,14 +68,20 @@
 (define (eval-code code)
   (define-values (lang body) (split-code code))
   (define evaluator (create-evaluator lang))
-  (do-eval evaluator body))
+  (begin0
+      (do-eval evaluator body)
+    (kill-evaluator evaluator)))
 
 (define (eval-code/chez code)
   ;; TODO: should i insert `(system-type 'vm)` check here?
 
-  (define-values (_ stxes) (split-code code))
+  (define-values (_ code) (split-code code))
   (define evaluator (create-evaluator 'racket))
-  (do-eval evaluator stxes
-           (lambda (stx)
-             (call-in-sandbox-context evaluator
-               (lambda () (vm-eval (syntax->datum stx)))))))
+  (begin0
+      (do-eval evaluator code
+               (lambda (stx)
+                 (call-in-sandbox-context evaluator
+                   (lambda () (vm-eval (syntax->datum stx))))))
+    (kill-evaluator evaluator)))
+
+;; TODO: call-with-evaluator?

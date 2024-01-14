@@ -1,16 +1,13 @@
 #lang racket/base
-(require (only-in web-server/servlet
-                  response/empty request-post-data/raw dispatch-case)
-         web-server/servlet-env
-         json
-         telebot
+(require telebot
          racket/match
          racket/string
+         xml
          "eval.rkt")
 
 (define token (getenv "BOT_TOKEN"))
 (define port (string->number (getenv "PORT")))
-(define webhook-url (getenv "WEBHOOK_URL"))
+(define webhook-base (getenv "WEBHOOK_BASE"))
 
 (unless token
   (error "does not setup BOT_TOKEN env-var"))
@@ -74,7 +71,7 @@ END
 
 ;; mode: 'racket or 'chez
 (define (eval message code mode)
-  (define result
+  (define eval-result
     (match mode
       ['racket (eval-code code)]
       ['chez (eval-code/chez code)]))
@@ -82,25 +79,22 @@ END
                  #:reply (make-reply-params
                           #:message-id (message-id message))
                  #:parse-mode "HTML"
-                 #:text result))
+                 #:text (process-eval-results eval-result)))
+
+(define (process-eval-results results)
+  (define xexprs
+    (for/list ([r (in-list results)])
+      (match-define (list result output error) r)
+      `(,@(if (non-empty-string? output) `((pre ,output)) '())
+        ,@(if (non-empty-string? error) `((em ,error)) '())
+        ,@(if (non-empty-string? result) `(,result) '()))))
+
+  (define str (apply string-append
+                     (map xexpr->string (apply append xexprs))))
+  (if (non-empty-string? str)
+      str
+      (xexpr->string `(pre "[nothing to output]"))))
 
 (module+ main
-  (bot-set-webhook bot webhook-url)
-
-  (define (handle-webhook req)
-    (thread
-     (lambda ()
-       (handle-update
-        (jsexpr->update (bytes->jsexpr (request-post-data/raw req))))))
-
-    (response/empty #:code 200))
-
-  (define app
-    (dispatch-case
-     [("webhook") #:method "post" handle-webhook]))
-
-  (serve/servlet app
-                 #:port port
-                 #:listen-ip #f
-                 #:servlet-regexp #rx""
-                 #:command-line? #t))
+  (bot-start/webhook bot handle-update
+                     webhook-base port))
