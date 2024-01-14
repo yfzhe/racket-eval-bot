@@ -34,9 +34,9 @@
     [(regexp #rx"^/help")
      (help message)]
     [(regexp #px"^/eval\\b(@[a-z_]+)?(.+)$" (list _ _ code))
-     (eval message (string-trim code))]
+     (eval message (string-trim code) 'racket)]
     [(regexp #px"^/eval_chez\\b(@[a-z_]+)?(.+)$" (list _ _ code))
-     (eval-chez message (string-trim code))]
+     (eval message (string-trim code) 'chez)]
     [_
      (cond
        [(equal? (ref (message : message) .chat .type)
@@ -72,19 +72,15 @@ END
                  #:parse-mode "MarkdownV2"
                  #:text "Not supported command"))
 
-(define (eval message code)
-  (define result (eval-code code))
+;; mode: 'racket or 'chez
+(define (eval message code mode)
+  (define result
+    (match mode
+      ['racket (eval-code code)]
+      ['chez (eval-code/chez code)]))
   (make-response #:chat-id (ref (message : message) .chat .id)
                  #:reply (make-reply-params
-                          #:message-id (ref (message : message) .id))
-                 #:parse-mode "HTML"
-                 #:text result))
-
-(define (eval-chez message code)
-  (define result (eval-code/chez code))
-  (make-response #:chat-id (ref (message : message) .chat .id)
-                 #:reply (make-reply-params
-                          #:message-id (ref (message : message) .id))
+                          #:message-id (message-id message))
                  #:parse-mode "HTML"
                  #:text result))
 

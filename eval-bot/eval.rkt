@@ -22,7 +22,7 @@
 ;; access its value as `read-syntax` which read code in interactive mode.
 
 (define (split-code code)
-  (match (regexp-match #rx"^#lang (.+)\n(.+)" code)
+  (match (regexp-match #rx"^#lang (.+)\n?(.*)" code)
     [(list _ lang body)
      (values (string->symbol lang) body)]
     [_
