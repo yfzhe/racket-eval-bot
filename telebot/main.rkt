@@ -1,10 +1,12 @@
 #lang racket/base
 (require "bot.rkt"
          "error.rkt"
+         "schema.rkt"
          "api.rkt")
 
 (provide (all-from-out "bot.rkt")
          (all-from-out "api.rkt")
+         ref :
          bot-get-updates
          bot-set-webhook
          bot-start/poll)

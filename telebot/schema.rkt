@@ -3,17 +3,18 @@
          (for-syntax racket/base
                      syntax/parse
                      racket/syntax
+                     racket/string
                      syntax/parse/experimental/template))
 
 (provide define-schema
          define-api
-         optional ->)
+         ref
+         optional : ->)
 
 ;; TODO:
 ;; - add field converter
 ;; - implement gen:custom-write
 ;; - provide transformer
-;; - a `ref` macro: (ref v .message .id)
 ;; - unit struct-info and schema-info
 ;; - contracts?
 
@@ -26,38 +27,53 @@
   (lambda (stx)
     (raise-syntax-error #f "optional should be used in define-schema" stx)))
 
+(define-syntax :
+  (lambda (stx)
+    (raise-syntax-error #f ": should be used in ref" stx)))
+
 (define-syntax ->
   (lambda (stx)
     (raise-syntax-error #f "-> should be used in define-api" stx)))
 
 (begin-for-syntax
-  (struct schema-info (fields from-jsexpr to-jsexpr))
+  (struct schema-info (struct-id fields from-jsexpr to-jsexpr))
 
   (define-syntax-class schema-id
-    #:attributes (from-jsexpr to-jsexpr)
+    #:attributes (struct-id fields from-jsexpr to-jsexpr)
     (pattern id:id
              #:with info-id (format-id #'id "schema:~a" #'id)
              #:do [(define local-value (syntax-local-value #'info-id (lambda () #f)))]
              #:when (schema-info? local-value)
+             #:with struct-id (schema-info-struct-id local-value)
+             #:attr fields (schema-info-fields local-value)
              #:with from-jsexpr (schema-info-from-jsexpr local-value)
              #:with to-jsexpr (schema-info-to-jsexpr local-value))
     (pattern id
+             #:attr struct-id #f
+             #:attr fields '()
              #:with from-jsexpr #'begin
              #:with to-jsexpr #'begin))
 
   (define-syntax-class field-type
     #:literals (optional)
-    #:attributes (opt? type.from-jsexpr type.to-jsexpr)
+    #:attributes (opt? type type.from-jsexpr type.to-jsexpr)
     (pattern (optional type:schema-id) #:attr opt? #t)
     (pattern type:schema-id #:attr opt? #f))
 
   (define-syntax-class field
     #:attributes (name type key type.opt?
-                       type.type.from-jsexpr type.type.to-jsexpr)
+                       type.type type.type.from-jsexpr type.type.to-jsexpr)
     (pattern (name:id type:field-type)
              #:with key #'name)
     (pattern (name:id type:field-type key*:string)
              #:with key (datum->syntax #'key* (string->symbol (syntax-e #'key*)))))
+
+  (define-syntax-class ref-key
+    #:attributes (trimed)
+    (pattern id:id
+             #:do [(define key/str (symbol->string (syntax-e #'id)))]
+             #:fail-unless (string-prefix? key/str ".") "key should start with \".\""
+             #:with trimed (datum->syntax #'id (string->symbol (substring key/str 1)))))
 
   (define-template-metafunction (make-field-failed stx)
     (syntax-parse stx
@@ -108,9 +124,35 @@
            jsexpr)
 
          (define-syntax schema-info-id
-           (schema-info (list #'fld ...)
+           (schema-info #'name
+                        (list #'fld ...)
                         #'jsexpr->name
                         #'name->jsexpr)))]))
+
+(define-syntax (ref stx)
+  (syntax-parse stx
+    #:literals (:)
+    [(_ (value : _)) #'value]
+    [(_ (value : schema:schema-id) key:ref-key more ...)
+     #:with (field-name field-schema)
+     (let loop ([fields (attribute schema.fields)])
+       (cond
+         [(null? fields)
+          (raise-syntax-error 'ref (format "schema ~a don't have the field ~a" (syntax-e #'schema) (syntax-e #'key.trimed))
+                              #f #'key)]
+         [else
+          (syntax-parse (car fields)
+            [fld:field
+             #:when (equal? (syntax-e #'fld.name)
+                            (syntax-e #'key.trimed))
+             #'(fld.name fld.type.type)]
+            [_ (loop (cdr fields))])]))
+     #:with struct-id #'schema.struct-id
+     #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'key.trimed)
+     #'(let ([x (accessor value)])
+         (ref (x : field-schema) more ...))]
+    [(_ (value : _) failed-value)
+     #'(if (eq? value json-undefined) failed-value value)]))
 
 (define-syntax (define-api stx)
   (syntax-parse stx
