@@ -1,28 +1,30 @@
 #lang racket/base
 (require "bot.rkt"
          (for-syntax racket/base
-                     syntax/parse
+                     syntax/parse/pre
                      racket/syntax
                      racket/string
                      syntax/parse/experimental/template
                      threading))
 
 (provide define-schema
-         define-api
-         ref
-         optional : ->)
+         optional
+         define-api ->
+         ref :)
 
 ;; TODO:
-;; - add field converter
+;; - add primitive schemas
 ;; - implement gen:custom-write
-;; - provide transformer
-;; - unit struct-info and schema-info
+;; - provide transformer `schema-out`
+;; - field converter?
 ;; - contracts?
 
-(define json-undefined
+(define json-undefined ;; though json doesn't have "undefined" type
   (let ()
     (struct undefined ())
     (undefined)))
+
+(define (json-undefined? x) (eq? x json-undefined))
 
 (define-syntax optional
   (lambda (stx)
@@ -50,7 +52,7 @@
 
   (struct schema-info (struct-id fields from-jsexpr to-jsexpr))
 
-  (define-syntax-class schema-id
+  (define-syntax-class schema
     #:attributes (struct-id fields from-jsexpr to-jsexpr)
     (pattern id:id
              #:with info-id (format-id #'id "schema:~a" #'id)
@@ -66,20 +68,23 @@
              #:with from-jsexpr #'begin
              #:with to-jsexpr #'begin))
 
-  (define-syntax-class field-type
+  (define-syntax-class schema/opt
     #:literals (optional)
     #:attributes (opt? type type.from-jsexpr type.to-jsexpr)
-    (pattern (optional type:schema-id) #:attr opt? #t)
-    (pattern type:schema-id #:attr opt? #f))
+    (pattern (optional type:schema) #:attr opt? #t)
+    (pattern type:schema #:attr opt? #f))
 
   (define-syntax-class field
-    #:attributes (name type key type.opt?
-                       type.type type.type.from-jsexpr type.type.to-jsexpr)
-    (pattern (name:id type:field-type (~optional key*:string))
+    #:attributes (name schema opt? key from-jsexpr to-jsexpr)
+    (pattern (name:id type:schema/opt (~optional key*:string))
              #:with key
              (if (attribute key*)
                  (datum->syntax #'key* (string->symbol (syntax-e #'key*)))
-                 (kebab-case->snake-case/id #'name))))
+                 (kebab-case->snake-case/id #'name))
+             #:with schema #'type.type
+             #:attr opt? (attribute type.opt?)
+             #:with from-jsexpr #'type.type.from-jsexpr
+             #:with to-jsexpr #'type.type.to-jsexpr))
 
   (define-syntax-class ref-key
     #:attributes (trimed)
@@ -91,7 +96,7 @@
   (define-template-metafunction (make-field-failed stx)
     (syntax-parse stx
       [(_ converter-id fld:field)
-       (if (attribute fld.type.opt?)
+       (if (attribute fld.opt?)
            #'json-undefined
            #'(lambda () (error 'converter-id "field \"~a\" is missed" 'fld.key)))]))
 
@@ -101,7 +106,7 @@
        #:with name #'fld.name
        #:with kw (datum->syntax #'name
                                 (string->keyword (symbol->string (syntax-e #'name))))
-       (if (attribute fld.type.opt?)
+       (if (attribute fld.opt?)
            #'(kw [name json-undefined])
            #'(kw name))]))
 
@@ -125,15 +130,15 @@
            (name fld.name ...))
 
          (define (jsexpr->name jsexpr)
-           (name (fld.type.type.from-jsexpr
+           (name (fld.from-jsexpr
                   (hash-ref jsexpr 'fld.key (make-field-failed jsexpr->name fld)))
                  ...))
 
          (define (name->jsexpr data)
            (define jsexpr (make-hash))
            (let ([fld-v ((make-accessor name fld) data)])
-             (unless (eq? fld-v json-undefined)
-               (hash-set! jsexpr 'fld.key (fld.type.type.to-jsexpr fld-v)))) ...
+             (unless (json-undefined? fld-v)
+               (hash-set! jsexpr 'fld.key (fld.to-jsexpr fld-v)))) ...
            jsexpr)
 
          (define-syntax schema-info-id
@@ -145,31 +150,36 @@
 (define-syntax (ref stx)
   (syntax-parse stx
     #:literals (:)
-    [(_ (value : _)) #'value]
-    [(_ (value : schema:schema-id) key:ref-key more ...)
+    [(_ (expr : schema:schema) key:ref-key ...+ (~optional failed))
+     #'(%ref schema expr (key ...) (~? failed))]))
+
+(define-syntax (%ref stx)
+  (syntax-parse stx
+    [(_ schema value () (~optional failed)) #'value]
+    [(_ schema:schema expr (key:ref-key more ...) (~optional failed))
      #:with (field-name field-schema)
      (let loop ([fields (attribute schema.fields)])
        (cond
          [(null? fields)
-          (raise-syntax-error 'ref (format "schema ~a don't have the field ~a" (syntax-e #'schema) (syntax-e #'key.trimed))
+          (raise-syntax-error 'ref (format "schema ~a don't have the field ~a"
+                                           (syntax-e #'schema) (syntax-e #'key.trimed))
                               #f #'key)]
          [else
           (syntax-parse (car fields)
             [fld:field
-             #:when (equal? (syntax-e #'fld.name)
-                            (syntax-e #'key.trimed))
-             #'(fld.name fld.type.type)]
+             #:when (equal? (syntax-e #'fld.name) (syntax-e #'key.trimed))
+             #'(fld.name fld.schema)]
             [_ (loop (cdr fields))])]))
      #:with struct-id #'schema.struct-id
      #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'key.trimed)
-     #'(let ([x (accessor value)])
-         (ref (x : field-schema) more ...))]
-    [(_ (value : _) failed-value)
-     #'(if (eq? value json-undefined) failed-value value)]))
+     #'(let ([val (accessor expr)])
+         (if (json-undefined? val) ;; TODO: optimize this check out if the field is not optional
+             (~? failed (raise-argument-error 'ref "the field ~a is undefined" 'key.trimed))
+             (%ref field-schema val (more ...) (~? failed))))]))
 
 (define-syntax (define-api stx)
   (syntax-parse stx
     #:literals (->)
-    [(_ api-id endpoint (~optional arg:schema-id) -> ret:schema-id)
+    [(_ api-id endpoint (~optional arg:schema) -> ret:schema)
      #'(define (api-id bot (~? arg))
          (ret.from-jsexpr (bot-post bot endpoint (~? (arg.to-jsexpr arg)))))]))
