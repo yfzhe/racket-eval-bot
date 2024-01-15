@@ -5,7 +5,7 @@
          json
          "private/bot.rkt"
          "private/error.rkt"
-         "schema.rkt"
+         "private/schema.rkt"
          "api.rkt")
 
 (provide bot? make-bot

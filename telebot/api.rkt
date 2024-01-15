@@ -1,5 +1,5 @@
 #lang racket/base
-(require "schema.rkt")
+(require "private/schema.rkt")
 
 (provide (all-defined-out))
 
@@ -21,12 +21,12 @@
   (text (optional string?)))
 
 (define-schema reply-params
-  (message-id integer? "message_id"))
+  (message-id integer?))
 
 (define-schema response
-  (chat-id integer? "chat_id")
+  (chat-id integer?)
   (text string?)
-  (parse-mode (optional string?) "parse_mode")
+  (parse-mode (optional string?))
   (reply (optional reply-params) "reply_parameters"))
 
 (define-schema update

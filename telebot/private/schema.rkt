@@ -1,10 +1,11 @@
 #lang racket/base
-(require "private/bot.rkt"
+(require "bot.rkt"
          (for-syntax racket/base
                      syntax/parse
                      racket/syntax
                      racket/string
-                     syntax/parse/experimental/template))
+                     syntax/parse/experimental/template
+                     threading))
 
 (provide define-schema
          define-api
@@ -36,6 +37,17 @@
     (raise-syntax-error #f "-> should be used in define-api" stx)))
 
 (begin-for-syntax
+  (define (kebab-case->snake-case/str str)
+    ;; TODO: how to handle non-alphabetic characters?
+    (string-replace str "-" "_"))
+
+  (define (kebab-case->snake-case/id id)
+    (~> (syntax-e id)
+        symbol->string
+        kebab-case->snake-case/str
+        string->symbol
+        (datum->syntax id _)))
+
   (struct schema-info (struct-id fields from-jsexpr to-jsexpr))
 
   (define-syntax-class schema-id
@@ -63,10 +75,11 @@
   (define-syntax-class field
     #:attributes (name type key type.opt?
                        type.type type.type.from-jsexpr type.type.to-jsexpr)
-    (pattern (name:id type:field-type)
-             #:with key #'name)
-    (pattern (name:id type:field-type key*:string)
-             #:with key (datum->syntax #'key* (string->symbol (syntax-e #'key*)))))
+    (pattern (name:id type:field-type (~optional key*:string))
+             #:with key
+             (if (attribute key*)
+                 (datum->syntax #'key* (string->symbol (syntax-e #'key*)))
+                 (kebab-case->snake-case/id #'name))))
 
   (define-syntax-class ref-key
     #:attributes (trimed)
