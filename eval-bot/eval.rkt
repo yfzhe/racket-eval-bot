@@ -3,7 +3,8 @@
          racket/sandbox
          racket/string
          racket/format
-         ffi/unsafe/vm)
+         ffi/unsafe/vm
+         "static-assert.rkt")
 
 (provide eval-code
          eval-code/chez)
@@ -73,12 +74,13 @@
     (kill-evaluator evaluator)))
 
 (define (eval-code/chez code)
-  ;; TODO: should i insert `(system-type 'vm)` check here?
+  (static-assert (eq? (system-type 'vm) 'chez-scheme)
+    "eval-code/chez is only supported in the CS variant")
 
-  (define-values (_ code) (split-code code))
+  (define-values (_ body) (split-code code))
   (define evaluator (create-evaluator 'racket))
   (begin0
-      (do-eval evaluator code
+      (do-eval evaluator body
                (lambda (stx)
                  (call-in-sandbox-context evaluator
                    (lambda () (vm-eval (syntax->datum stx))))))
