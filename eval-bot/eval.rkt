@@ -22,7 +22,7 @@
 ;; access its value as `read-syntax` which read code in interactive mode.
 
 (define (split-code code)
-  (match (regexp-match #rx"^#lang (.+)\n?(.*)" code)
+  (match (regexp-match #px"^#lang ([\\w+_/-]+)\n?(.*)" code)
     [(list _ lang body)
      (values (string->symbol lang) body)]
     [_
@@ -86,12 +86,21 @@
                    (lambda () (vm-eval (syntax->datum stx))))))
     (kill-evaluator evaluator)))
 
-;; TODO: call-with-evaluator?
-
 (module+ test
   (require rackunit)
 
   (check-equal? (eval-code "(+ 1 2)")
                 '(("3" "" "")))
   (check-equal? (eval-code "(define a 42) (display (/ a 2))")
+                '(("" "" "") ("" "21" "")))
+  (check-equal? (eval-code "#lang racket\n(+ 2 3)")
+                '(("5" "" ""))
+                "#lang")
+  (check-equal? (eval-code "#lang racket")
+                '()
+                "#lang, with empty module body")
+
+  (check-equal? (eval-code/chez "(+ 1 2)")
+                '(("3" "" "")))
+  (check-equal? (eval-code/chez "(define a 42) (display (/ a 2))")
                 '(("" "" "") ("" "21" ""))))
