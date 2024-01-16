@@ -189,6 +189,14 @@
 (define-syntax (define-api stx)
   (syntax-parse stx
     #:literals (->)
-    [(_ api-id endpoint (~optional arg:schema) -> ret:schema)
-     #'(define (api-id bot (~? arg))
-         (ret.from-jsexpr (bot-post bot endpoint (~? (arg.to-jsexpr arg)))))]))
+    [(_ api-id:id endpoint:string arg:schema -> ret:schema)
+     #'(define (api-id bot arg)
+         (ret.from-jsexpr (bot-post bot endpoint (arg.to-jsexpr arg))))]
+    [(_ api-id:id endpoint:string (fld:field ...) -> ret:schema)
+     #'(define (api-id bot (~@ . (make-field-kw-arg fld)) ...)
+         (ret.from-jsexpr
+          (bot-post bot endpoint
+                    (let ([json (make-hasheq)])
+                      (unless (json-undefined? fld.name)
+                        (hash-set! json 'fld.key (fld.to-jsexpr fld.name))) ...
+                      json))))]))

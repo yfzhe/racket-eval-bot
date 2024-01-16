@@ -14,14 +14,12 @@
          ref :
          bot-start/poll bot-start/webhook)
 
-(define (bot-get-updates bot [offset 0])
-  (bot-post bot "/getUpdates"
-            (hasheq 'offset (number->string offset))))
+(define-api bot-get-updates "/getUpdates"
+  ((offset integer?)) -> (listof update))
 
-(define (bot-set-webhook bot webhook-url)
-  ;; TODO: getWebhookInfo and compare to the target
-  (bot-post bot "/setWebhook"
-            (hasheq 'url webhook-url)))
+(define-api bot-set-webhook "/setWebhook"
+  ((webhook-url string? "url"))
+  -> true?)
 
 (define (bot-start/poll bot handle-update)
   (let loop ([offset 0] [updates '()])
@@ -29,16 +27,14 @@
       [(null? updates)
        (loop offset (bot-get-updates bot offset))]
       [else
-       (define update (jsexpr->update (car updates)))
+       (define update (car updates))
        (define resp (handle-update update))
        (bot-send-message bot resp)
        (loop (add1 (update-id update)) (cdr updates))])))
 
 (define (bot-start/webhook bot handle-update webhook-base port)
-  (define webhook-url
-    (string-append webhook-base "/webhook"))
-
-  (bot-set-webhook bot webhook-url)
+  (bot-set-webhook bot
+                   #:webhook-url (string-append webhook-base "/webhook"))
 
   (define (handle-webhook req)
     (thread

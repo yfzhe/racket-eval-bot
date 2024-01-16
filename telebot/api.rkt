@@ -35,7 +35,7 @@
 
 ;; api methods
 (define-api bot-get-me "/getMe"
-  -> user)
+  () -> user)
 
 (define-api bot-send-message "/sendMessage"
   response -> message)
