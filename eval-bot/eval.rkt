@@ -87,3 +87,11 @@
     (kill-evaluator evaluator)))
 
 ;; TODO: call-with-evaluator?
+
+(module+ test
+  (require rackunit)
+
+  (check-equal? (eval-code "(+ 1 2)")
+                '(("3" "" "")))
+  (check-equal? (eval-code "(define a 42) (display (/ a 2))")
+                '(("" "" "") ("" "21" ""))))
