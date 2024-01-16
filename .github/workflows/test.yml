@@ -4,15 +4,11 @@ jobs:
   build:
     name: "Test on Racket '${{ matrix.racket-version }}' (${{ matrix.racket-variant }})"
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
       matrix:
-        racket-version: ["stable", "current"]
+        racket-version: ["8.11"]
         racket-variant: ["CS"]
-        include:
-          - racket-version: current
-            experimental: true
     steps:
       - uses: actions/checkout@v3.1.0
       - uses: Bogdanp/setup-racket@v1.9.1
