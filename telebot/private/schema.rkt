@@ -1,5 +1,6 @@
 #lang racket/base
-(require "bot.rkt"
+(require racket/contract/base
+         "bot.rkt"
          (for-syntax racket/base
                      syntax/parse/pre
                      racket/syntax
@@ -8,16 +9,16 @@
                      threading))
 
 (provide define-schema
+         integer? string? boolean? true? listof
          optional
          define-api ->
          ref :)
 
 ;; TODO:
-;; - add primitive schemas
 ;; - implement gen:custom-write
 ;; - provide transformer `schema-out`
 ;; - field converter?
-;; - contracts?
+;; - add contracts
 
 (define json-undefined ;; though json doesn't have "undefined" type
   (let ()
@@ -25,6 +26,8 @@
     (undefined)))
 
 (define (json-undefined? x) (eq? x json-undefined))
+
+(define (true? x) (eq? x #t))
 
 (define-syntax optional
   (lambda (stx)
@@ -53,6 +56,7 @@
   (struct schema-info (struct-id fields from-jsexpr to-jsexpr))
 
   (define-syntax-class schema
+    #:literals (integer? string? boolean? true? listof)
     #:attributes (struct-id fields from-jsexpr to-jsexpr)
     (pattern id:id
              #:with info-id (format-id #'id "schema:~a" #'id)
@@ -62,11 +66,16 @@
              #:attr fields (schema-info-fields local-value)
              #:with from-jsexpr (schema-info-from-jsexpr local-value)
              #:with to-jsexpr (schema-info-to-jsexpr local-value))
-    (pattern id
+    (pattern (~or integer? string? boolean? true?)
              #:attr struct-id #f
              #:attr fields '()
-             #:with from-jsexpr #'begin
-             #:with to-jsexpr #'begin))
+             #:with from-jsexpr #'values
+             #:with to-jsexpr #'values)
+    (pattern (listof s:schema)
+             #:attr struct-id #f
+             #:attr fields '()
+             #:with from-jsexpr #'(lambda (jsexpr) (map s.from-jsexpr jsexpr))
+             #:with to-jsexpr #'(lambda (jsexpr) (map s.to-jsexpr jsexpr))))
 
   (define-syntax-class schema/opt
     #:literals (optional)
@@ -76,15 +85,15 @@
 
   (define-syntax-class field
     #:attributes (name schema opt? key from-jsexpr to-jsexpr)
-    (pattern (name:id type:schema/opt (~optional key*:string))
+    (pattern (name:id type+:schema/opt (~optional key*:string))
              #:with key
              (if (attribute key*)
                  (datum->syntax #'key* (string->symbol (syntax-e #'key*)))
                  (kebab-case->snake-case/id #'name))
-             #:with schema #'type.type
-             #:attr opt? (attribute type.opt?)
-             #:with from-jsexpr #'type.type.from-jsexpr
-             #:with to-jsexpr #'type.type.to-jsexpr))
+             #:with schema #'type+.type
+             #:attr opt? (attribute type+.opt?)
+             #:with from-jsexpr #'type+.type.from-jsexpr
+             #:with to-jsexpr #'type+.type.to-jsexpr))
 
   (define-syntax-class ref-key
     #:attributes (trimed)
