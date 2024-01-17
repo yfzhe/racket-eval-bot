@@ -166,7 +166,7 @@
   (syntax-parse stx
     [(_ schema value () (~optional failed)) #'value]
     [(_ schema:schema expr (key:ref-key more ...) (~optional failed))
-     #:with (field-name field-schema)
+     #:with field:field
      (let loop ([fields (attribute schema.fields)])
        (cond
          [(null? fields)
@@ -177,14 +177,17 @@
           (syntax-parse (car fields)
             [fld:field
              #:when (equal? (syntax-e #'fld.name) (syntax-e #'key.trimed))
-             #'(fld.name fld.schema)]
+             #'fld]
             [_ (loop (cdr fields))])]))
      #:with struct-id #'schema.struct-id
      #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'key.trimed)
-     #'(let ([val (accessor expr)])
-         (if (json-undefined? val) ;; TODO: optimize this check out if the field is not optional
-             (~? failed (raise-argument-error 'ref "the field ~a is undefined" 'key.trimed))
-             (%ref field-schema val (more ...) (~? failed))))]))
+     (if (attribute field.opt?)
+         #'(let ([val (accessor expr)])
+             (if (json-undefined? val)
+                 (~? failed (raise-argument-error 'ref "the field ~a is undefined" 'key.trimed))
+                 (%ref field.schema val (more ...) (~? failed))))
+         #'(let ([val (accessor expr)])
+             (%ref field.schema val (more ...) (~? failed))))]))
 
 (define-syntax (define-api stx)
   (syntax-parse stx
