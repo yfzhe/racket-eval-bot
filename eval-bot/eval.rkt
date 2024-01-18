@@ -2,7 +2,6 @@
 (require racket/match
          racket/sandbox
          racket/string
-         racket/format
          ffi/unsafe/vm
          "static-assert.rkt")
 
@@ -22,7 +21,7 @@
 ;; access its value as `read-syntax` which read code in interactive mode.
 
 (define (split-code code)
-  (match (regexp-match #px"^#lang ([\\w+_/-]+)\n?(.*)" code)
+  (match (regexp-match #px"^#lang ([\\w+_/-]+)\\s?(.*)" code)
     [(list _ lang body)
      (values (string->symbol lang) body)]
     [_
@@ -38,33 +37,39 @@
                  [sandbox-memory-limit 64])
     (make-module-evaluator (format "#lang ~a" lang))))
 
+;; do-eval: do evaluation in `evaluator`
+;;   returns (listof (list/c string? string? string?))
+;;   each 3-length list represents result, output, and error output
+;;   of evaluation of one expression.
 (define (do-eval evaluator code [eval (lambda (stx) (evaluator stx))])
   (define read-syntax
     (call-in-sandbox-context evaluator current-read-interaction))
 
-  (for/list ([stx (in-port (lambda (in) (read-syntax 'repl in))
-                           (open-input-string code))])
-    ;; the result might be multi-values
-    (define result
-      (call-with-values (lambda () (eval stx)) list))
+  (with-handlers ([exn:fail:read?
+                   (lambda (e) (list (list "" "" (exn-message e))))])
+    (for/list ([stx (in-port (lambda (in) (read-syntax 'repl in))
+                             (open-input-string code))])
+      ;; the result might be multi-values
+      (define result
+        (call-with-values (lambda () (eval stx)) list))
 
-    (define output (get-output evaluator))
-    (define error (get-error-output evaluator))
+      (define output (get-output evaluator))
+      (define error (get-error-output evaluator))
 
-    (define result-string
-      (match result
-        [(list (? void?)) ""]
-        [(list single)
-         (~v/sandbox evaluator single)]
-        [(list multi ...)
-         (string-join (map (lambda (v) (~v/sandbox evaluator v)) multi)
-                      "\n")]))
+      (define result-string
+        (match result
+          [(list (? void?)) ""]
+          [(list single)
+           (~v/sandbox evaluator single)]
+          [(list multi ...)
+           (string-join (map (lambda (v) (~v/sandbox evaluator v)) multi)
+                        "\n")]))
 
-    (list result-string output error)))
+      (list result-string output error))))
 
 (define (~v/sandbox evaluator val)
   (call-in-sandbox-context evaluator
-    (lambda () (~v val))))
+    (lambda () (format "~v" val))))
 
 (define (eval-code code)
   (define-values (lang body) (split-code code))
@@ -77,10 +82,10 @@
   (static-assert (eq? (system-type 'vm) 'chez-scheme)
     "eval-code/chez is only supported in the CS variant")
 
-  (define-values (_ body) (split-code code))
+  ;; TODO: use r6rs reader
   (define evaluator (create-evaluator 'racket))
   (begin0
-      (do-eval evaluator body
+      (do-eval evaluator code
                (lambda (stx)
                  (call-in-sandbox-context evaluator
                    (lambda () (vm-eval (syntax->datum stx))))))
@@ -99,8 +104,17 @@
   (check-equal? (eval-code "#lang racket")
                 '()
                 "#lang, with empty module body")
+  (check-pred (lambda (result)
+                (regexp-match? #rx"read-syntax: expected a `\\)` to close `\\(`"
+                               (caddr (car result))))
+              (eval-code "(+ 1 2")
+              "syntax error")
 
   (check-equal? (eval-code/chez "(+ 1 2)")
                 '(("3" "" "")))
   (check-equal? (eval-code/chez "(define a 42) (display (/ a 2))")
-                '(("" "" "") ("" "21" ""))))
+                '(("" "" "") ("" "21" "")))
+  (check-pred (lambda (result)
+                (regexp-match? #rx"read-syntax: `#lang` not enabled"
+                               (caddr (car result))))
+              (eval-code/chez "#lang chezscheme")))
