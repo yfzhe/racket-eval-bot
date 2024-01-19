@@ -35,7 +35,11 @@
                  [sandbox-propagate-exceptions #f]
                  [sandbox-make-code-inspector current-code-inspector]
                  [sandbox-memory-limit 64])
-    (make-module-evaluator (format "#lang ~a" lang))))
+    (define evaluator
+      (make-module-evaluator (format "#lang ~a" lang)))
+    (call-in-sandbox-context evaluator
+      (lambda () (error-print-context-length 2)))
+    evaluator))
 
 ;; do-eval: do evaluation in `evaluator`
 ;;   returns (listof (list/c string? string? string?))
