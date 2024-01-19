@@ -15,7 +15,7 @@
          bot-start/poll bot-start/webhook)
 
 (define-api bot-get-updates "/getUpdates"
-  ((offset integer?)) -> (listof update))
+  ((offset (optional integer?))) -> (listof update))
 
 (define-api bot-set-webhook "/setWebhook"
   ((webhook-url string? "url"))
@@ -25,12 +25,12 @@
   (let loop ([offset 0] [updates '()])
     (cond
       [(null? updates)
-       (loop offset (bot-get-updates bot offset))]
+       (loop offset (bot-get-updates bot #:offset offset))]
       [else
        (define update (car updates))
        (define resp (handle-update update))
        (bot-send-message bot resp)
-       (loop (add1 (update-id update)) (cdr updates))])))
+       (loop (add1 (ref (update : update) .id)) (cdr updates))])))
 
 (define (bot-start/webhook bot handle-update webhook-base port)
   (bot-set-webhook bot
