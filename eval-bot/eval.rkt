@@ -45,10 +45,11 @@
   (define read-syntax
     (call-in-sandbox-context evaluator current-read-interaction))
 
+  (define input (open-input-string code))
+  (port-count-lines! input)
   (with-handlers ([exn:fail:read?
                    (lambda (e) (list (list "" "" (exn-message e))))])
-    (for/list ([stx (in-port (lambda (in) (read-syntax 'repl in))
-                             (open-input-string code))])
+    (for/list ([stx (in-port (lambda (in) (read-syntax 'repl in)) input)])
       ;; the result might be multi-values
       (define result
         (call-with-values (lambda () (eval stx)) list))
