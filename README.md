@@ -1,5 +1,11 @@
-# Racket eval bot on telegram
+# racket-eval-bot
 
-Just a naive eval bot, deploy on heroku.
+A Telegram bot which eval Racket code.
+It supports Racket, Typed Racket, Rhombus and Chez Scheme
+(via Racket runtime) now.
+Try it: [@racket_eval_bot](https://t.me/racket_eval_bot).
 
-Try it at [@racket_eval_bot](https://t.me/racket_eval_bot).
+---
+
+This repo also contains a package `telebot`, providing Telegram bot api
+in Racket. Still in development. 🏗
