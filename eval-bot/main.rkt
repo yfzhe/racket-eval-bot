@@ -1,8 +1,8 @@
 #lang racket/base
 (require telebot
+         telebot/text
          racket/match
          racket/string
-         xml
          "eval.rkt")
 
 (define token (getenv "BOT_TOKEN"))
@@ -85,15 +85,14 @@ END
   (define xexprs
     (for/list ([r (in-list results)])
       (match-define (list result output error) r)
-      `(,@(if (non-empty-string? output) `((pre ,output)) '())
-        ,@(if (non-empty-string? error) `((em ,error)) '())
-        ,@(if (non-empty-string? result) `(,result) '()))))
+      `(@ (code ,output)
+          (em ,error)
+          ,result)))
 
-  (define str (apply string-append
-                     (map xexpr->string (apply append xexprs))))
+  (define str (xexpr*->string `(@ . ,xexprs)))
   (if (non-empty-string? str)
       str
-      (xexpr->string `(pre "[nothing to output]"))))
+      (xexpr*->string `(code "[nothing to output]"))))
 
 (module+ main
   (bot-start/webhook bot handle-update
