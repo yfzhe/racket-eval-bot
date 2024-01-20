@@ -55,26 +55,22 @@
                    (lambda (e) (list (list "" "" (exn-message e))))])
     (for/list ([stx (in-port (lambda (in) (read-syntax 'repl in)) input)])
       ;; the result might be multi-values
-      (define result
+      (define result-values
         (call-with-values (lambda () (eval stx)) list))
 
       (define output (get-output evaluator))
       (define error (get-error-output evaluator))
 
-      (define result-string
-        (match result
-          [(list (? void?)) ""]
-          [(list single)
-           (~v/sandbox evaluator single)]
-          [(list multi ...)
-           (string-join (map (lambda (v) (~v/sandbox evaluator v)) multi)
-                        "\n")]))
+      (define result
+        (apply string-append
+               (for/list ([v (in-list result-values)])
+                 (cond
+                   [(void? v) ""]
+                   [else
+                    (call-in-sandbox-context evaluator
+                      (lambda () (format "~v\n" v)))]))))
 
-      (list result-string output error))))
-
-(define (~v/sandbox evaluator val)
-  (call-in-sandbox-context evaluator
-    (lambda () (format "~v" val))))
+      (list result output error))))
 
 (define (eval-code code)
   (define-values (lang body) (split-code code))
@@ -100,11 +96,16 @@
   (require rackunit)
 
   (check-equal? (eval-code "(+ 1 2)")
-                '(("3" "" "")))
-  (check-equal? (eval-code "(define a 42) (display (/ a 2))")
-                '(("" "" "") ("" "21" "")))
+                '(("3\n" "" "")))
+  (check-equal? (eval-code "(display \"hello world\")")
+                '(("" "hello world" "")))
+  (check-equal? (eval-code "(define a 42) a")
+                '(("" "" "") ("42\n" "" "")))
+  (check-equal? (eval-code "(values 1 2 3)")
+                '(("1\n2\n3\n" "" ""))
+                "multi-values")
   (check-equal? (eval-code "#lang racket\n(+ 2 3)")
-                '(("5" "" ""))
+                '(("5\n" "" ""))
                 "#lang")
   (check-equal? (eval-code "#lang racket")
                 '()
@@ -116,7 +117,7 @@
               "syntax error")
 
   (check-equal? (eval-code/chez "(+ 1 2)")
-                '(("3" "" "")))
+                '(("3\n" "" "")))
   (check-equal? (eval-code/chez "(define a 42) (display (/ a 2))")
                 '(("" "" "") ("" "21" "")))
   (check-pred (lambda (result)
