@@ -38,6 +38,7 @@
   (lambda (stx)
     (raise-syntax-error #f ": should be used in ref" stx)))
 
+#;
 (define-syntax ->
   (lambda (stx)
     (raise-syntax-error #f "-> should be used in define-api" stx)))

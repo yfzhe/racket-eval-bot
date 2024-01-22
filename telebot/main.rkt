@@ -1,5 +1,6 @@
 #lang racket/base
-(require (only-in web-server/servlet
+(require racket/contract/base
+         (only-in web-server/servlet
                   response/empty request-post-data/raw)
          web-server/servlet-env
          json
@@ -8,7 +9,8 @@
          "private/schema.rkt"
          "api.rkt")
 
-(provide bot? make-bot
+(provide bot?
+         (contract-out (make-bot (-> string? bot?)))
          exn:fail:bot? exn:fail:bot:api?
          (all-from-out "api.rkt")
          ref :
