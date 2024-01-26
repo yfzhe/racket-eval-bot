@@ -1,7 +1,6 @@
 #lang racket/base
 (require racket/contract/base
-         (only-in web-server/servlet
-                  response/empty request-post-data/raw)
+         web-server/servlet
          web-server/servlet-env
          json
          "private/bot.rkt"

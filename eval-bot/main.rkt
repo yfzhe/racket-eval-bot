@@ -14,18 +14,14 @@
 (define bot (make-bot token))
 
 (define (handle-update update)
-  (define message (ref (update : update) .message #f))
-  (define resp (handle-message message))
-  (when resp
-    (bot-send-message bot resp)))
+  (cond
+    [(ref (update : update) .message #f)
+     => handle-message]))
 
-;; TODO: i need a robuster way to parse commands
 (define (handle-message message)
   (define text (ref (message : message) .text #f))
   (match text
-    ;; currently only handle "message" updates with `text` field
-    ;; `#f` represents not to respond
-    [#f #f]
+    [#f (void)]
     [(regexp #rx"^/start")
      (start message)]
     [(regexp #rx"^/help")
@@ -36,38 +32,40 @@
      (eval message (string-trim code) 'chez)]
     [_
      (cond
-       [(equal? (ref (message : message) .chat .type)
-                "private")
+       [(equal? (ref (message : message) .chat .type) "private")
         (match text
           [(regexp #rx"^/")
            (bad-request message)]
           [_ (eval message text 'racket)])]
-       [else #f])]))
+       [else (void)])]))
 
 (define (start message)
-  (make-response #:chat-id (ref (message : message) .chat .id)
-                 #:parse-mode "MarkdownV2"
-                 #:text #<<END
+  (bot-send-message bot
+                    #:chat-id (ref (message : message) .chat .id)
+                    #:parse-mode "MarkdownV2"
+                    #:text #<<END
 Welcome to *racket\-eval\-bot*\!
 Type your code, and wait for the result\.
 END
-                 ))
+                    ))
 
 (define (help message)
-  (make-response #:chat-id (ref (message : message) .chat .id)
-                 #:parse-mode "MarkdownV2"
-                 #:text #<<END
+  (bot-send-message bot
+                    #:chat-id (ref (message : message) .chat .id)
+                    #:parse-mode "MarkdownV2"
+                    #:text #<<END
 /start\: start to use this bot
 /eval \<code\>\: eval code
 /eval\_chez \<code\>\: eval code with Chez Scheme \(inside Racket\)
 /help\: show this message
 END
-                 ))
+                    ))
 
 (define (bad-request message)
-  (make-response #:chat-id (ref (message : message) .chat .id)
-                 #:parse-mode "MarkdownV2"
-                 #:text "Not supported command"))
+  (bot-send-message bot
+                    #:chat-id (ref (message : message) .chat .id)
+                    #:parse-mode "MarkdownV2"
+                    #:text "Not supported command"))
 
 ;; mode: 'racket or 'chez
 (define (eval message code mode)
@@ -75,11 +73,12 @@ END
     (match mode
       ['racket (eval-code code)]
       ['chez (eval-code/chez code)]))
-  (make-response #:chat-id (ref (message : message) .chat .id)
-                 #:reply (make-reply-params
-                          #:message-id (message-id message))
-                 #:parse-mode "HTML"
-                 #:text (process-eval-results eval-result)))
+  (bot-send-message bot
+                    #:chat-id (ref (message : message) .chat .id)
+                    #:reply (make-reply-params
+                             #:message-id (message-id message))
+                    #:parse-mode "HTML"
+                    #:text (process-eval-results eval-result)))
 
 (define (process-eval-results results)
   (define xexprs

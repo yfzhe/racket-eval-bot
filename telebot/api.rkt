@@ -20,12 +20,6 @@
   (chat chat)
   (text (optional string?)))
 
-(define-schema response
-  (chat-id integer?)
-  (text string?)
-  (parse-mode (optional string?))
-  (reply (optional reply-params) "reply_parameters"))
-
 (define-schema reply-params
   (message-id integer?))
 
@@ -38,4 +32,8 @@
   () -> user)
 
 (define-api bot-send-message "/sendMessage"
-  response -> message)
+  ((chat-id integer?)
+   (text string?)
+   (parse-mode (optional string?))
+   (reply (optional reply-params) "reply_parameters"))
+  -> message)
