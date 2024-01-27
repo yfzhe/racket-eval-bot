@@ -15,10 +15,12 @@
          ref :)
 
 ;; TODO:
-;; - implement gen:custom-write
+;; - literal types
+;; - contracts
 ;; - provide transformer `schema-out`
+;; - cooperate with check-syntax
+;; - implement gen:custom-write
 ;; - field converter?
-;; - add contracts
 ;; - schema union
 
 (define json-undefined ;; though json doesn't have "undefined" type
@@ -55,7 +57,7 @@
         string->symbol
         (datum->syntax id _)))
 
-  (struct schema-info (struct-id fields from-jsexpr to-jsexpr))
+  (struct schema-info (struct-id contract fields from-jsexpr to-jsexpr))
 
   (define-syntax-class schema-id
     #:attributes (info)
@@ -64,32 +66,43 @@
                    (define local-value (syntax-local-value info-id (lambda () #f)))]
              #:fail-unless (schema-info? local-value)
              "expected an identifier for a schema name"
-             #:attr info local-value))
+             #:attr info local-value
+             #:with struct-id (schema-info-struct-id local-value)
+             #:with contract (schema-info-contract local-value)
+             #:attr fields (schema-info-fields local-value)))
 
   (define-syntax-class schema
     #:literals (integer? string? boolean? true? listof)
-    #:attributes (struct-id fields from-jsexpr to-jsexpr)
-    (pattern (~or integer? string? boolean? true?)
-             #:attr struct-id #f
-             #:attr fields '()
-             #:with from-jsexpr #'values
+    #:attributes (contract from-jsexpr to-jsexpr)
+    (pattern integer?
+             #:with contract #'integer?
+             #:attr from-jsexpr #'values
+             #:with to-jsexpr #'values)
+    (pattern string?
+             #:with contract #'string?
+             #:attr from-jsexpr #'values
+             #:with to-jsexpr #'values)
+    (pattern boolean?
+             #:with contract #'boolean?
+             #:attr from-jsexpr #'values
+             #:with to-jsexpr #'values)
+    (pattern true?
+             #:with contract #'true?
+             #:attr from-jsexpr #'values
              #:with to-jsexpr #'values)
     (pattern (listof s:schema)
-             #:attr struct-id #f
-             #:attr fields '()
+             #:with contract #'(listof s.contract)
              #:with from-jsexpr #'(lambda (jsexpr) (map s.from-jsexpr jsexpr))
              #:with to-jsexpr #'(lambda (jsexpr) (map s.to-jsexpr jsexpr)))
     (pattern id:schema-id
              #:do [(define local-value (attribute id.info))]
-             #:with struct-id (schema-info-struct-id local-value)
-             #:attr fields (schema-info-fields local-value)
+             #:with contract (schema-info-contract local-value)
              #:with from-jsexpr (schema-info-from-jsexpr local-value)
              #:with to-jsexpr (schema-info-to-jsexpr local-value))
     ;; this clause is a temporal fallback for recursive schema definition
     ;; TODO: distinguish the strict and the loose situation
     (pattern id:id
-             #:attr struct-id #f
-             #:attr fields '()
+             #:with contract #f
              #:attr from-jsexpr #f
              #:attr to-jsexpr #f))
 
@@ -132,14 +145,15 @@
   (syntax-parse stx
     [(_ name:id fld:field ...)
      #:with schema-info-id (format-id #'name "schema:~a" #'name)
+     #:with pred-id (format-id #'name "~a?" #'name)
      #:with ctor-id (format-id #'name "make-~a" #'name)
      #:with jsexpr->name (format-id #'name "jsexpr->~a" #'name)
      #:with name->jsexpr (format-id #'name "~a->jsexpr" #'name)
 
      (syntax-local-lift-module-end-declaration
       #'(begin
-          (define-jsexpr->schema name jsexpr->name)
-          (define-schema->jsexpr name name->jsexpr)))
+          (define (jsexpr->name value) (jsexpr->schema name value))
+          (define (name->jsexpr value) (schema->jsexpr name value))))
 
      #'(begin
          (struct name (fld.name ...)
@@ -151,13 +165,15 @@
 
          (define-syntax schema-info-id
            (schema-info #'name
+                        #'pred-id
                         (list #'fld ...)
                         #'jsexpr->name
                         #'name->jsexpr)))]))
 
-(define-syntax (define-jsexpr->schema stx)
+(define-syntax (jsexpr->schema stx)
   (syntax-parse stx
-    [(_ schema:schema-id jsexpr->schema:id)
+    #:literals (listof)
+    [(_ schema:schema-id e:expr)
      #:do [(define schema-info (attribute schema.info))
            (define fields (schema-info-fields schema-info))]
      #:with struct-id (schema-info-struct-id schema-info)
@@ -167,19 +183,19 @@
          [fld:field
           #:with key #'fld.key
           (if (attribute fld.opt?)
-              #'(let ([val (hash-ref jsexpr 'key json-undefined)])
+              #'(let ([val (hash-ref value 'key json-undefined)])
                   (if (json-undefined? val) val (fld.from-jsexpr val)))
-              #'(let ([val (hash-ref jsexpr 'key
-                                     (lambda () (raise-argument-error
-                                                 'jsexpr->schema
-                                                 "field \"~a\" is missed" 'key)))])
+              #'(let ([val (hash-ref value 'key
+                                     (lambda ()
+                                       (error 'jsexpr->schema
+                                              "field \"~a\" is missed" 'key)))])
                   (fld.from-jsexpr val)))]))
-     #'(define (jsexpr->schema jsexpr)
+     #'(let ([value e])
          (struct-id field-value ...))]))
 
-(define-syntax (define-schema->jsexpr stx)
+(define-syntax (schema->jsexpr stx)
   (syntax-parse stx
-    [(_ schema:schema-id schema->jsexpr:id)
+    [(_ schema:schema-id e:expr)
      #:do [(define schema-info (attribute schema.info))
            (define fields (schema-info-fields schema-info))]
      #:with struct-id (schema-info-struct-id schema-info)
@@ -189,14 +205,14 @@
          [fld:field
           #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'fld.name)
           (if (attribute fld.opt?)
-              #'(let ([fld-val (accessor data)])
+              #'(let ([fld-val (accessor value)])
                   (unless (json-undefined? fld-val)
                     (hash-set! jsexpr 'fld.key (fld.to-jsexpr fld-val))))
-              #'(hash-set! jsexpr 'fld.key (fld.to-jsexpr (accessor data))))]))
-     #'(define (schema->jsexpr data)
-         (let ([jsexpr (make-hash)])
-           set-field-value ...
-           jsexpr))]))
+              #'(hash-set! jsexpr 'fld.key (fld.to-jsexpr (accessor value))))]))
+     #'(let ([value e]
+             [jsexpr (make-hash)])
+         set-field-value ...
+         jsexpr)]))
 
 (define-syntax (ref stx)
   (syntax-parse stx
@@ -207,13 +223,15 @@
 (define-syntax (%ref stx)
   (syntax-parse stx
     [(_ schema value () (~optional failed)) #'value]
-    [(_ schema:schema expr (key:ref-key more ...) (~optional failed))
+    [(_ schema:schema-id expr (key:ref-key more ...) (~optional failed))
+     #:do [(define schema-info (attribute schema.info))]
      #:with field:field
-     (let loop ([fields (attribute schema.fields)])
+     (let loop ([fields (schema-info-fields schema-info)])
        (cond
          [(null? fields)
-          (raise-syntax-error 'ref (format "schema ~a don't have the field ~a"
-                                           (syntax-e #'schema) (syntax-e #'key.trimed))
+          (raise-syntax-error 'ref
+                              (format "schema ~a don't have the field ~a"
+                                      (syntax-e #'schema) (syntax-e #'key.trimed))
                               #f #'key)]
          [else
           (syntax-parse (car fields)
@@ -221,15 +239,20 @@
              #:when (equal? (syntax-e #'fld.name) (syntax-e #'key.trimed))
              #'fld]
             [_ (loop (cdr fields))])]))
-     #:with struct-id #'schema.struct-id
+     #:with struct-id (schema-info-struct-id schema-info)
      #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'key.trimed)
      (if (attribute field.opt?)
          #'(let ([val (accessor expr)])
              (if (json-undefined? val)
-                 (~? failed (raise-argument-error 'ref "the field ~a is undefined" 'key.trimed))
+                 (~? failed (error 'ref "the field ~a is undefined" 'key.trimed))
                  (%ref field.schema val (more ...) (~? failed))))
          #'(let ([val (accessor expr)])
-             (%ref field.schema val (more ...) (~? failed))))]))
+             (%ref field.schema val (more ...) (~? failed))))]
+    [(_ schema expr (key more ...) (~optional failed))
+     (raise-syntax-error 'ref
+                         (format "schema ~a don't have fields"
+                                 (syntax->datum #'schema))
+                         #f #'key)]))
 
 (define-syntax (define-api stx)
   (syntax-parse stx
