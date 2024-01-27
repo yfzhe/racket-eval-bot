@@ -3,12 +3,13 @@
          "error.rkt")
 
 (provide bot? make-bot
+         set-bot-username!
          bot-post)
 
-(struct bot (token))
+(struct bot (token [username #:mutable]))
 
 (define (make-bot token)
-  (bot token))
+  (bot token #f))
 
 (define *tg-api-base* "https://api.telegram.org/bot")
 

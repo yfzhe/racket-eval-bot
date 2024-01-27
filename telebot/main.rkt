@@ -22,7 +22,12 @@
   ((webhook-url string? "url"))
   -> true?)
 
+(define (bot-init! bot)
+  (define me (bot-get-me bot))
+  (set-bot-username! bot (ref (me : user) .username #f)))
+
 (define (bot-start/poll bot handle-update)
+  (bot-init! bot)
   (let loop ([offset 0] [updates '()])
     (cond
       [(null? updates)
@@ -34,6 +39,7 @@
        (loop (add1 (ref (update : update) .id)) (cdr updates))])))
 
 (define (bot-start/webhook bot handle-update webhook-base port)
+  (bot-init! bot)
   (bot-set-webhook bot
                    #:webhook-url (string-append webhook-base "/webhook"))
 
