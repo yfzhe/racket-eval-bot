@@ -20,7 +20,7 @@
 
 (define-api bot-set-webhook "/setWebhook"
   ((webhook-url string? "url"))
-  -> true?)
+  -> #t)
 
 (define (bot-init! bot)
   (define me (bot-get-me bot))

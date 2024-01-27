@@ -9,13 +9,12 @@
                      threading))
 
 (provide define-schema
-         integer? string? boolean? true? listof
+         integer? string? boolean? listof
          optional
          define-api ->
          ref :)
 
 ;; TODO:
-;; - literal types
 ;; - contracts
 ;; - provide transformer `schema-out`
 ;; - cooperate with check-syntax
@@ -29,8 +28,6 @@
     (undefined)))
 
 (define (json-undefined? x) (eq? x json-undefined))
-
-(define (true? x) (eq? x #t))
 
 (define-syntax optional
   (lambda (stx)
@@ -72,7 +69,7 @@
              #:attr fields (schema-info-fields local-value)))
 
   (define-syntax-class schema
-    #:literals (integer? string? boolean? true? listof)
+    #:literals (integer? string? boolean? listof)
     #:attributes (contract from-jsexpr to-jsexpr)
     (pattern integer?
              #:with contract #'integer?
@@ -86,8 +83,8 @@
              #:with contract #'boolean?
              #:attr from-jsexpr #'values
              #:with to-jsexpr #'values)
-    (pattern true?
-             #:with contract #'true?
+    (pattern (~or lit:integer lit:string lit:boolean)
+             #:with contract #'(lambda (x) (equal? x lit)) ;; TODO: just use #'lit
              #:attr from-jsexpr #'values
              #:with to-jsexpr #'values)
     (pattern (listof s:schema)
