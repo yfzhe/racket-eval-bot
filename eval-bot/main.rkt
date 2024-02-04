@@ -1,6 +1,7 @@
 #lang racket/base
 (require telebot
          telebot/text
+         telebot/command
          racket/match
          racket/string
          "eval.rkt")
@@ -20,24 +21,26 @@
 
 (define (handle-message message)
   (define text (ref (message : message) .text #f))
-  (match text
-    [#f (void)]
-    [(regexp #rx"^/start")
-     (start message)]
-    [(regexp #rx"^/help")
-     (help message)]
-    [(regexp #px"^/eval\\b(@[a-z_]+)?(.+)$" (list _ _ code))
-     (eval message (string-trim code) 'racket)]
-    [(regexp #px"^/eval_chez\\b(@[a-z_]+)?(.+)$" (list _ _ code))
-     (eval message (string-trim code) 'chez)]
-    [_
-     (cond
-       [(equal? (ref (message : message) .chat .type) "private")
-        (match text
-          [(regexp #rx"^/")
-           (bad-request message)]
-          [_ (eval message text 'racket)])]
-       [else (void)])]))
+  (define in-private-chat?
+    (equal? (ref (message : message) .chat .type) "private"))
+  (cond
+    [(not text) (void)]
+    [(parse-command text)
+     =>
+     (match-lambda
+       [(list "start" _)
+        (start message)]
+       [(list "help" _)
+        (help message)]
+       [(list "eval" code)
+        (eval message (string-trim code) 'racket)]
+       [(list "eval_chez" code)
+        (eval message (string-trim code) 'chez)]
+       [(list _ _)
+        (bad-request message)])]
+    [in-private-chat?
+     (eval message text 'racket)]
+    [else (void)]))
 
 (define (start message)
   (bot-send-message bot
