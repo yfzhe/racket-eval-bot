@@ -3,7 +3,7 @@
          "error.rkt")
 
 (provide bot? make-bot
-         set-bot-username!
+         bot-username set-bot-username!
          bot-post)
 
 (struct bot (token [username #:mutable]))

@@ -25,19 +25,14 @@
     (equal? (ref (message : message) .chat .type) "private"))
   (cond
     [(not text) (void)]
-    [(parse-command text)
+    [(parse-command text (bot-username bot))
      =>
      (match-lambda
-       [(list "start" _)
-        (start message)]
-       [(list "help" _)
-        (help message)]
-       [(list "eval" code)
-        (eval message (string-trim code) 'racket)]
-       [(list "eval_chez" code)
-        (eval message (string-trim code) 'chez)]
-       [(list _ _)
-        (bad-request message)])]
+       [(list "start" _) (start message)]
+       [(list "help" _) (help message)]
+       [(list "eval" code) (eval message code 'racket)]
+       [(list "eval_chez" code) (eval message code 'chez)]
+       [(list _ _) (bad-request message)])]
     [in-private-chat?
      (eval message text 'racket)]
     [else (void)]))

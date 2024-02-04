@@ -10,6 +10,7 @@
 
 (provide bot?
          (contract-out (make-bot (-> string? bot?)))
+         bot-username ;; TODO: don't export this
          exn:fail:bot? exn:fail:bot:api?
          (all-from-out "api.rkt")
          ref :
