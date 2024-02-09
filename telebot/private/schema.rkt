@@ -95,13 +95,7 @@
              #:do [(define local-value (attribute id.info))]
              #:with contract (schema-info-contract local-value)
              #:with from-jsexpr (schema-info-from-jsexpr local-value)
-             #:with to-jsexpr (schema-info-to-jsexpr local-value))
-    ;; this clause is a temporal fallback for recursive schema definition
-    ;; TODO: distinguish the strict and the loose situation
-    (pattern id:id
-             #:with contract #f
-             #:attr from-jsexpr #f
-             #:attr to-jsexpr #f))
+             #:with to-jsexpr (schema-info-to-jsexpr local-value)))
 
   (define-syntax-class schema/opt
     #:literals (optional)
@@ -147,11 +141,6 @@
      #:with jsexpr->name (format-id #'name "jsexpr->~a" #'name)
      #:with name->jsexpr (format-id #'name "~a->jsexpr" #'name)
 
-     (syntax-local-lift-module-end-declaration
-      #'(begin
-          (define (jsexpr->name value) (jsexpr->schema name value))
-          (define (name->jsexpr value) (schema->jsexpr name value))))
-
      #'(begin
          (struct name (fld.name ...)
            ;; #:constructor-name struct-ctor-id
@@ -159,6 +148,9 @@
 
          (define (ctor-id (~@ . (make-field-kw-arg fld)) ...)
            (name fld.name ...))
+
+         (define (jsexpr->name value) (jsexpr->schema name value))
+         (define (name->jsexpr value) (schema->jsexpr name value))
 
          (define-syntax schema-info-id
            (schema-info #'name
