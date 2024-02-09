@@ -22,12 +22,12 @@
 ;; - field converter?
 ;; - schema union
 
-(define json-undefined ;; though json doesn't have "undefined" type
+(define none
   (let ()
-    (struct undefined ())
-    (undefined)))
+    (struct none ())
+    (none)))
 
-(define (json-undefined? x) (eq? x json-undefined))
+(define (none? x) (eq? x none))
 
 (define-syntax optional
   (lambda (stx)
@@ -129,7 +129,7 @@
        #:with kw (datum->syntax #'name
                                 (string->keyword (symbol->string (syntax-e #'name))))
        (if (attribute fld.opt?)
-           #'(kw [name json-undefined])
+           #'(kw [name none])
            #'(kw name))])))
 
 (define-syntax (define-schema stx)
@@ -172,8 +172,8 @@
          [fld:field
           #:with key #'fld.key
           (if (attribute fld.opt?)
-              #'(let ([val (hash-ref value 'key json-undefined)])
-                  (if (json-undefined? val) val (fld.from-jsexpr val)))
+              #'(let ([val (hash-ref value 'key none)])
+                  (if (none? val) val (fld.from-jsexpr val)))
               #'(let ([val (hash-ref value 'key
                                      (lambda ()
                                        (error 'jsexpr->schema
@@ -195,7 +195,7 @@
           #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'fld.name)
           (if (attribute fld.opt?)
               #'(let ([fld-val (accessor value)])
-                  (unless (json-undefined? fld-val)
+                  (unless (none? fld-val)
                     (hash-set! jsexpr 'fld.key (fld.to-jsexpr fld-val))))
               #'(hash-set! jsexpr 'fld.key (fld.to-jsexpr (accessor value))))]))
      #'(let ([value e]
@@ -232,8 +232,8 @@
      #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'key.trimed)
      (if (attribute field.opt?)
          #'(let ([val (accessor expr)])
-             (if (json-undefined? val)
-                 (~? failed (error 'ref "the field ~a is undefined" 'key.trimed))
+             (if (none? val)
+                 (~? failed (error 'ref "the field ~a has no value" 'key.trimed))
                  (%ref field.schema val (more ...) (~? failed))))
          #'(let ([val (accessor expr)])
              (%ref field.schema val (more ...) (~? failed))))]
@@ -254,6 +254,6 @@
          (ret.from-jsexpr
           (bot-post bot endpoint
                     (let ([json (make-hasheq)])
-                      (unless (json-undefined? fld.name)
+                      (unless (none? fld.name)
                         (hash-set! json 'fld.key (fld.to-jsexpr fld.name))) ...
                       json))))]))
