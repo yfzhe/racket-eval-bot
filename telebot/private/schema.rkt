@@ -3,20 +3,20 @@
          "bot.rkt"
          (for-syntax racket/base
                      syntax/parse/pre
+                     racket/provide-transform
                      racket/syntax
                      racket/string
                      syntax/parse/experimental/template
                      threading))
 
-(provide define-schema
+(provide define-schema schema-out
          integer? string? boolean? listof
          optional
-         define-api ->
-         ref :)
+         ref :
+         define-api ->)
 
 ;; TODO:
 ;; - contracts
-;; - provide transformer `schema-out`
 ;; - cooperate with check-syntax
 ;; - implement gen:custom-write
 ;; - field converter?
@@ -202,6 +202,23 @@
              [jsexpr (make-hash)])
          set-field-value ...
          jsexpr)]))
+
+(define-syntax schema-out
+  (make-provide-transformer
+   (lambda (stx modes)
+     (syntax-parse stx
+       [(_ id:schema-id)
+        (define export-ids
+          (list #'id
+                (format-id #'id "make-~a" #'id)
+                (format-id #'id "schema:~a" #'id)
+                (format-id #'id "jsexpr->~a" #'id)
+                (format-id #'id "~a->jsexpr" #'id)))
+
+        (for/list ([id (in-list export-ids)])
+          (make-export (syntax-property id 'disappeared-use
+                                        (syntax-local-introduce id))
+                       id 0 #f id))]))))
 
 (define-syntax (ref stx)
   (syntax-parse stx
