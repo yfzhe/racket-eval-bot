@@ -1,37 +1,50 @@
 #lang racket/base
-(require "private/schema.rkt")
+(require "private/schema.rkt"
+         (for-syntax racket/base))
 
-(provide (all-defined-out))
+(define-syntax (define-schema/provide stx)
+  (syntax-case stx ()
+    [(_ id body ...)
+     #'(begin
+         (provide (schema-out id))
+         (define-schema id body ...))]))
 
-(define-schema user
+(define-syntax (define-api/provide stx)
+  (syntax-case stx ()
+    [(_ id body ...)
+     #'(begin
+         (provide id)
+         (define-api id body ...))]))
+
+(define-schema/provide user
   (id integer?)
   (bot? boolean? "is_bot")
   (username (optional string?)))
 
-(define-schema chat
+(define-schema/provide chat
   (id integer?)
   (type string?)
   (title (optional string?))
   (username (optional string?)))
 
-(define-schema message
+(define-schema/provide message
   (id integer? "message_id")
   (date integer?)
   (chat chat)
   (text (optional string?)))
 
-(define-schema reply-params
+(define-schema/provide reply-params
   (message-id integer?))
 
-(define-schema update
+(define-schema/provide update
   (id integer? "update_id")
   (message (optional message)))
 
 ;; api methods
-(define-api bot-get-me "/getMe"
+(define-api/provide bot-get-me "/getMe"
   () -> user)
 
-(define-api bot-send-message "/sendMessage"
+(define-api/provide bot-send-message "/sendMessage"
   ((chat-id integer?)
    (text string?)
    (parse-mode (optional string?))
