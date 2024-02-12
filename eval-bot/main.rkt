@@ -74,7 +74,7 @@ END
   (bot-send-message bot
                     #:chat-id (ref (message : message) .chat .id)
                     #:reply (make-reply-params
-                             #:message-id (message-id message))
+                             #:message-id (ref (message : message) .id))
                     #:parse-mode "HTML"
                     #:text (process-eval-results eval-result)))
 
