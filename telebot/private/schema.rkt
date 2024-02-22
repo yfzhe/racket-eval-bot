@@ -17,9 +17,9 @@
 
 ;; TODO:
 ;; - contracts
+;; - recursive definition
 ;; - cooperate with check-syntax
 ;; - implement gen:custom-write
-;; - field converter?
 ;; - schema union
 
 (define none
@@ -114,13 +114,6 @@
              #:attr opt? (attribute type+.opt?)
              #:attr from-jsexpr (attribute type+.type.from-jsexpr)
              #:attr to-jsexpr (attribute type+.type.to-jsexpr)))
-
-  (define-syntax-class ref-key
-    #:attributes (trimed)
-    (pattern id:id
-             #:do [(define key/str (symbol->string (syntax-e #'id)))]
-             #:fail-unless (string-prefix? key/str ".") "key should start with \".\""
-             #:with trimed (datum->syntax #'id (string->symbol (substring key/str 1)))))
 
   (define-template-metafunction (make-field-kw-arg stx)
     (syntax-parse stx
@@ -220,6 +213,14 @@
                                         (syntax-local-introduce id))
                        id 0 #f id))]))))
 
+(begin-for-syntax
+  (define-syntax-class ref-key
+    #:attributes (trimmed)
+    (pattern id:id
+             #:do [(define key/str (symbol->string (syntax-e #'id)))]
+             #:fail-unless (string-prefix? key/str ".") "key should start with \".\""
+             #:with trimmed (datum->syntax #'id (string->symbol (substring key/str 1))))))
+
 (define-syntax (ref stx)
   (syntax-parse stx
     #:literals (:)
@@ -237,28 +238,27 @@
          [(null? fields)
           (raise-syntax-error 'ref
                               (format "schema ~a don't have the field ~a"
-                                      (syntax-e #'schema) (syntax-e #'key.trimed))
+                                      (syntax-e #'schema) (syntax-e #'key.trimmed))
                               #f #'key)]
          [else
           (syntax-parse (car fields)
             [fld:field
-             #:when (equal? (syntax-e #'fld.name) (syntax-e #'key.trimed))
+             #:when (equal? (syntax-e #'fld.name) (syntax-e #'key.trimmed))
              #'fld]
             [_ (loop (cdr fields))])]))
      #:with struct-id (schema-info-struct-id schema-info)
-     #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'key.trimed)
+     #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'key.trimmed)
      (if (attribute field.opt?)
          #'(let ([val (accessor expr)])
              (if (none? val)
-                 (~? failed (error 'ref "the field ~a has no value" 'key.trimed))
+                 (~? failed (error 'ref "the field ~a has no value" 'key.trimmed))
                  (%ref field.schema val (more ...) (~? failed))))
          #'(let ([val (accessor expr)])
              (%ref field.schema val (more ...) (~? failed))))]
     [(_ schema expr (key more ...) (~optional failed))
      (raise-syntax-error 'ref
                          (format "schema ~a don't have fields"
-                                 (syntax->datum #'schema))
-                         #f #'key)]))
+                                 (syntax->datum #'schema)))]))
 
 (define-syntax (define-api stx)
   (syntax-parse stx
