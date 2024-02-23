@@ -54,6 +54,9 @@
         string->symbol
         (datum->syntax id _)))
 
+  (define (identifier-length stx)
+    (string-length (symbol->string (syntax-e stx))))
+
   (struct schema-info (struct-id contract fields from-jsexpr to-jsexpr))
 
   (define-syntax-class schema-id
@@ -247,7 +250,17 @@
              #'fld]
             [_ (loop (cdr fields))])]))
      #:with struct-id (schema-info-struct-id schema-info)
-     #:with accessor (format-id #'struct-id "~a-~a" #'struct-id #'key.trimmed)
+     #:with accessor/raw (format-id #'struct-id "~a-~a" #'struct-id #'key.trimmed)
+     #:with accessor
+     (syntax-property
+      (syntax-property #'accessor/raw
+                       'disappeared-use (list (syntax-local-introduce #'key)))
+      'sub-range-binders
+      (list (vector (syntax-local-introduce #'key)
+                    1 (sub1 (identifier-length #'key))
+                    (syntax-local-introduce #'field.name)
+                    0 (identifier-length #'field.name))))
+
      (if (attribute field.opt?)
          #'(let ([val (accessor expr)])
              (if (none? val)
