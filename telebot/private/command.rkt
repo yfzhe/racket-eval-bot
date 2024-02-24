@@ -1,10 +1,23 @@
 #lang racket/base
-(require racket/match)
+(require racket/match
+         "bot.rkt")
 
-(provide parse-command)
+(provide command-name command-proc
+         bot-add-command!
+         parse-command)
+
+;; - name: string
+;; - proc: bot message string -> void
+;;   TODO: want to remove these 2 arguments, `bot` and `message`,
+;;     before that, we need a better abstraction on bot api methods.
+(struct command (name proc))
+
+(define (bot-add-command! bot name proc)
+  (set-bot-commands! bot
+                     (append (bot-commands bot)
+                             (list (command name proc)))))
 
 (define rx #px"^/([a-z0-9_]+)@?([a-zA-Z0-9_]+)?\\s?(.*)")
-
 (define (parse-command text bot-username)
   (match (regexp-match rx text)
     [(list _ command (or #f (== bot-username)) args)

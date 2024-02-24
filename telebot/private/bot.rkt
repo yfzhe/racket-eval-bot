@@ -4,12 +4,16 @@
 
 (provide bot? make-bot
          bot-username set-bot-username!
+         bot-commands set-bot-commands!
          bot-post)
 
-(struct bot (token [username #:mutable]))
+(struct bot
+  (token
+   [username #:mutable]
+   [commands #:mutable]))
 
 (define (make-bot token)
-  (bot token #f))
+  (bot token #f '()))
 
 (define *tg-api-base* "https://api.telegram.org/bot")
 
