@@ -5,33 +5,6 @@
          racket/string
          "eval.rkt")
 
-(define token (getenv "BOT_TOKEN"))
-(define port (string->number (getenv "PORT")))
-(define webhook-base (getenv "WEBHOOK_BASE"))
-
-(unless token
-  (error "does not setup BOT_TOKEN env-var"))
-(define bot (make-bot token))
-
-(bot-add-command! bot "start" start)
-(bot-add-command! bot "help" help)
-(bot-add-command! bot "eval" (eval 'racket))
-(bot-add-command! bot "eval_chez" (eval 'chez))
-
-(define (handle-update update)
-  (cond
-    [(ref (update : update) .message #f)
-     => handle-message]))
-
-(define (handle-message message)
-  (define text (ref (message : message) .text #f))
-  (define in-private-chat?
-    (equal? (ref (message : message) .chat .type) "private"))
-  (cond
-    [(and in-private-chat? text)
-     ((eval 'racket) bot message text)]
-    [else (void)]))
-
 (define (start bot message _arg)
   (bot-send-message bot
                     #:chat-id (ref (message : message) .chat .id)
@@ -81,6 +54,32 @@ END
       str
       (xexpr*->string `(code "[nothing to output]"))))
 
+(define (handle-update bot update)
+  (cond
+    [(ref (update : update) .message #f)
+     =>
+     (lambda (message)
+       (define text (ref (message : message) .text #f))
+       (define in-private-chat?
+         (equal? (ref (message : message) .chat .type) "private"))
+       (cond
+         [(and in-private-chat? text)
+          ((eval 'racket) bot message text)]
+         [else (void)]))]))
+
 (module+ main
+  (define token (getenv "BOT_TOKEN"))
+  (define port (getenv "PORT"))
+  (define webhook-base (getenv "WEBHOOK_BASE"))
+
+  (unless token
+    (error "does not setup BOT_TOKEN env-var"))
+  (define bot (make-bot token))
+
+  (bot-add-command! bot "start" start)
+  (bot-add-command! bot "help" help)
+  (bot-add-command! bot "eval" (eval 'racket))
+  (bot-add-command! bot "eval_chez" (eval 'chez))
+
   (bot-start/webhook bot handle-update
-                     webhook-base port))
+                     webhook-base (string->number port)))
