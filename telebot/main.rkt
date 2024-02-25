@@ -33,9 +33,11 @@
 (define (make-bot-update-handler bot handler)
   (define commands (bot-commands bot))
   (lambda (update)
+    (define message (ref (update : update) .message #f))
     (cond
-      [(and~> (ref (update : update) .message .text #f)
-              (parse-command _ (bot-username bot)))
+      [(and message
+            (and~> (ref (message : message) .text #f)
+                   (parse-command _ (bot-username bot))))
        =>
        (lambda (cmd-call)
          (match-define (list name arg) cmd-call)
@@ -47,7 +49,7 @@
                               #:chat-id (ref (message : message) .chat .id)
                               #:parse-mode "HTML"
                               #:text "Not supported command")]))]
-      [else (handler update)])))
+      [else (handler bot update)])))
 
 (define (bot-start/poll bot handle-update)
   (bot-init! bot)
