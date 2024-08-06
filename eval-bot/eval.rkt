@@ -34,6 +34,7 @@
                  [sandbox-propagate-breaks #f]
                  [sandbox-propagate-exceptions #f]
                  [sandbox-make-code-inspector current-code-inspector]
+                 [sandbox-make-environment-variables make-environment-variables]
                  [sandbox-memory-limit 64])
     (define evaluator
       (make-module-evaluator (format "#lang ~a" lang)))
@@ -115,6 +116,10 @@
                                (caddr (car result))))
               (eval-code "(+ 1 2")
               "syntax error")
+  (check-equal? (eval-code "(environment-variables-names
+                              (current-environment-variables))")
+                '(("'()\n" "" ""))
+                "empty environment-variables")
 
   (check-equal? (eval-code/chez "(+ 1 2)")
                 '(("3\n" "" "")))
