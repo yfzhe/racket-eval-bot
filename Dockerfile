@@ -1,6 +1,6 @@
-FROM racket/racket:8.11-full
+FROM racket/racket:8.13-full
 
-RUN raco pkg install -i --auto --no-docs rhombus-prototype
+RUN raco pkg install -i --auto --no-docs rhombus-lib
 
 WORKDIR /app
 
